@@ -1,51 +1,41 @@
 # Estado do Projeto
 
-## 2026-09-12 — Fase 4
+## 2026-09-12 — Correção pós-Fase 4
 
-### Estado encontrado antes da fase
+### Estado encontrado
 
-- Fase 3 concluída: autenticação, sessões seguras, rate limit de login e auditoria básica.
-- Schema D1 já continha `posts`, `products`, `automation_rules` e `instagram_accounts`.
-- Não havia CRUD administrativo nem integração Meta.
+- Fase 4 concluída: painel administrativo, CRUD inicial e controles de propriedade.
+- O primeiro deploy no Cloudflare chegou a iniciar o build do Worker, mas o build do cliente falhou por `Unterminated string` em `src/main.tsx`.
 
 ### Implementado
 
-- Painel administrativo protegido por sessão.
-- Navegação em pt-BR: Visão geral, Publicações, Produtos, Automações, Histórico, Segurança e Configurações.
-- CRUD inicial de publicações, produtos e regras de automação.
-- Listagens sempre limitadas ao `user.id` autenticado.
-- Verificação de propriedade das relações entre publicação, conta e produto.
-- Proteção contra IDOR/BOLA nas rotas por identificador.
-- Validação estrita com Zod.
-- URL de produto limitada a HTTPS absoluto, sem credenciais embutidas.
-- Templates de DM limitados às variáveis aprovadas `{{nome}}` e `{{link_produto}}`.
-- Normalização de palavras-chave e constraint de unicidade por publicação.
-- Ativação/desativação de automações.
-- Auditoria de criação, alteração e exclusão dos recursos administrativos.
-- Interface sem exposição de tokens ou segredos.
-- Cadastro manual de publicação mantido temporariamente até a integração oficial Meta.
+- Corrigido o truncamento de `src/main.tsx`.
+- Restaurada a parte final do componente de automações e a montagem do `App`.
+- Corrigida a renderização das variáveis `{{nome}}` e `{{link_produto}}` no texto explicativo da tela de automações.
+- Mantidas as funcionalidades administrativas já implementadas na Fase 4.
 
 ### Preservado
 
 - Autenticação e sessão da Fase 3.
 - Estrutura React + TypeScript + Vite + Worker + D1.
-- Migration inicial e migration de autenticação.
-- Documentação e nenhuma integração não oficial com Instagram.
+- CRUD de publicações, produtos e automações.
+- Proteções de autorização, validação de URL e templates.
+- Documentação e ausência de integração não oficial com Instagram.
 
 ### Testado / verificado
 
-- Estado do repositório e commits recentes foram inspecionados antes das alterações.
-- Código foi revisado para garantir escopo por proprietário nas consultas e validação dos relacionamentos.
-- `npm run typecheck`, `npm run lint`, `npm run build` e migrations **ainda não foram executados neste ambiente**; portanto não são declarados aprovados.
+- O log fornecido do Cloudflare confirma que a etapa do Worker foi construída e que a falha ocorreu na etapa de build do cliente.
+- O erro apontado foi `Unterminated string` em `src/main.tsx` na região informada pelo build.
+- O arquivo foi corrigido e commitado no GitHub.
+- Um novo build no Cloudflare ainda é necessário para confirmar a correção no ambiente de deploy.
+- `npm run typecheck`, `npm run lint` e migrations ainda não foram executados neste ambiente; portanto não são declarados aprovados.
 
 ### Segurança
 
-- Nenhuma URL recebida de webhook é usada nesta fase.
-- URL de produto aceita somente `https:` e rejeita URLs com usuário/senha embutidos.
-- IDs fornecidos pelo cliente nunca são usados sem uma consulta de propriedade pelo usuário autenticado.
-- Templates não permitem variáveis arbitrárias, HTML/JS ou execução de código.
-- Respostas JSON permanecem `no-store` e com headers de segurança.
+- A correção não adiciona tokens, segredos ou credenciais ao frontend.
+- Nenhuma integração Meta foi ativada.
+- As proteções de autorização e validação da Fase 4 foram preservadas.
 
-### Próximo passo — Fase 5
+### Próximo passo
 
-Preparar a integração oficial com Instagram/Meta: confirmar documentação vigente, versão da Graph API, permissões, fluxo OAuth, eventos de comentário/messaging, formato e validação de webhooks e restrições de envio de DM antes de implementar qualquer chamada real.
+Executar novamente o deploy no Cloudflare e analisar o resultado completo do build. Somente após o build passar, validar `/api/health`, D1 remoto e, então, avançar para a preparação da integração oficial com Meta/Instagram.
