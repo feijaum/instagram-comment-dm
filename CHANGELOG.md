@@ -4,6 +4,14 @@ Todas as alterações relevantes do projeto devem ser registradas aqui.
 
 ## [Não lançado]
 
+### Correção — Build do frontend
+
+- Corrigido `src/main.tsx`, que estava truncado durante a implementação do painel administrativo.
+- Corrigida a string JSX das variáveis de template da automação, responsável pelo erro `Unterminated string`.
+- Restaurada a parte final do componente de automações e a montagem do `App`.
+- Mantidas as funcionalidades administrativas já implementadas na Fase 4.
+- O build ainda precisa ser executado novamente no ambiente Cloudflare para validação final.
+
 ### Fase 4 — Painel administrativo e CRUD inicial
 
 - Adicionado painel administrativo protegido por sessão.
