@@ -14,18 +14,20 @@
     "db:migrate:remote": "wrangler d1 migrations apply instagram_comment_dm --remote"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "latest",
+    "@eslint/js": "latest",
+    "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@types/node": "latest",
+    "@vitejs/plugin-react": "latest",
     "eslint": "latest",
     "typescript": "latest",
+    "typescript-eslint": "latest",
     "vite": "latest",
     "wrangler": "latest"
   }
