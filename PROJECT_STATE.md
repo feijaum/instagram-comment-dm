@@ -1,41 +1,52 @@
 # Estado do Projeto
 
-## 2026-09-12 — Correção pós-Fase 4
+## 2026-09-12 — Primeiro acesso administrativo
 
 ### Estado encontrado
 
+- Correção do build do frontend já commitada; novo deploy Cloudflare ainda precisa confirmar o build.
 - Fase 4 concluída: painel administrativo, CRUD inicial e controles de propriedade.
-- O primeiro deploy no Cloudflare chegou a iniciar o build do Worker, mas o build do cliente falhou por `Unterminated string` em `src/main.tsx`.
+- Autenticação da Fase 3 já implementada com sessões seguras.
+- O projeto ainda não tinha mecanismo seguro para criar o primeiro usuário.
 
 ### Implementado
 
-- Corrigido o truncamento de `src/main.tsx`.
-- Restaurada a parte final do componente de automações e a montagem do `App`.
-- Corrigida a renderização das variáveis `{{nome}}` e `{{link_produto}}` no texto explicativo da tela de automações.
-- Mantidas as funcionalidades administrativas já implementadas na Fase 4.
+- Migration `0002_admin_bootstrap.sql` com marcador único de inicialização.
+- Endpoint `POST /api/auth/bootstrap` para criação do primeiro administrador.
+- Bootstrap protegido pelo Secret de runtime `ADMIN_BOOTSTRAP_TOKEN`.
+- Bootstrap exige origem autorizada, Secret correto e payload estrito de e-mail/senha.
+- O primeiro usuário, o marcador de bootstrap e a auditoria são gravados atomicamente no D1.
+- O bootstrap fica permanentemente bloqueado após o primeiro uso.
+- Senha do administrador armazenada somente como hash PBKDF2-HMAC-SHA-256.
+- Nenhum token de bootstrap ou senha foi colocado no código, frontend ou documentação com valor real.
 
 ### Preservado
 
-- Autenticação e sessão da Fase 3.
+- Login, sessão `__Host-session` e rate limit da Fase 3.
+- CRUD e autorização por proprietário da Fase 4.
 - Estrutura React + TypeScript + Vite + Worker + D1.
-- CRUD de publicações, produtos e automações.
-- Proteções de autorização, validação de URL e templates.
-- Documentação e ausência de integração não oficial com Instagram.
+- Proteções de URL, templates, auditoria e ausência de integração não oficial com Instagram.
 
 ### Testado / verificado
 
-- O log fornecido do Cloudflare confirma que a etapa do Worker foi construída e que a falha ocorreu na etapa de build do cliente.
-- O erro apontado foi `Unterminated string` em `src/main.tsx` na região informada pelo build.
-- O arquivo foi corrigido e commitado no GitHub.
-- Um novo build no Cloudflare ainda é necessário para confirmar a correção no ambiente de deploy.
-- `npm run typecheck`, `npm run lint` e migrations ainda não foram executados neste ambiente; portanto não são declarados aprovados.
+- Código existente foi inspecionado antes da alteração.
+- Migration, endpoint e fluxo de bootstrap foram revisados quanto a atomicidade e ausência de segredos em código.
+- `npm run typecheck`, `npm run lint` e migrations ainda não foram executados neste ambiente.
+- O build anterior do Cloudflare falhou por `Unterminated string`; a correção já foi commitada, mas o novo build ainda precisa ser confirmado.
 
 ### Segurança
 
-- A correção não adiciona tokens, segredos ou credenciais ao frontend.
-- Nenhuma integração Meta foi ativada.
-- As proteções de autorização e validação da Fase 4 foram preservadas.
+- O Secret `ADMIN_BOOTSTRAP_TOKEN` deve existir somente como Secret no Cloudflare.
+- O token é aceito somente no header `x-admin-bootstrap-token` e nunca é retornado pela API.
+- O endpoint não cria novos administradores depois que o bootstrap foi consumido.
+- A senha nunca é armazenada em texto puro.
+- Não compartilhar o token de bootstrap no chat, GitHub, screenshots ou logs.
 
 ### Próximo passo
 
-Executar novamente o deploy no Cloudflare e analisar o resultado completo do build. Somente após o build passar, validar `/api/health`, D1 remoto e, então, avançar para a preparação da integração oficial com Meta/Instagram.
+1. Configurar `ADMIN_BOOTSTRAP_TOKEN` como Secret no Cloudflare.
+2. Executar o deploy para aplicar `0002_admin_bootstrap.sql`.
+3. Fazer o primeiro bootstrap usando o endpoint seguro.
+4. Entrar no painel com o e-mail e senha definidos.
+5. Depois do acesso, remover/desativar o Secret de bootstrap e validar `/api/health`, D1 e demais rotas.
+6. Somente então avançar para a integração oficial Meta/Instagram.
