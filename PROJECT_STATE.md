@@ -1,45 +1,51 @@
 # Estado do Projeto
 
-## 2026-09-12 — Fase 3
+## 2026-09-12 — Fase 4
 
 ### Estado encontrado antes da fase
 
-- Repositório `feijaum/instagram-comment-dm` com base React + TypeScript + Vite, Worker, D1 schema e documentação.
-- Nenhuma implementação de autenticação anterior existia.
-- A migration inicial já possuía `users`, incluindo `password_hash`, e as demais entidades do domínio.
+- Fase 3 concluída: autenticação, sessões seguras, rate limit de login e auditoria básica.
+- Schema D1 já continha `posts`, `products`, `automation_rules` e `instagram_accounts`.
+- Não havia CRUD administrativo nem integração Meta.
 
 ### Implementado
 
-- Migration `0001_auth.sql` com `sessions` e `auth_attempts`.
-- Hash de senha PBKDF2-HMAC-SHA-256 com salt aleatório e custo configurado.
-- Sessões com token aleatório; somente o hash do token é persistido.
-- Cookie de sessão `__Host-session` com `HttpOnly`, `Secure` e `SameSite=Strict`.
-- Expiração de sessão em 8 horas e revogação no logout.
-- Rate limit de tentativas de login por identificador.
-- Validação Zod estrita do payload de login.
-- Endpoints `POST /api/auth/login`, `GET /api/auth/me` e `POST /api/auth/logout`.
-- Auditoria de login/logout sem credenciais ou tokens.
-- Verificação de origem para operações de alteração de estado.
-- Headers de segurança e `Cache-Control: no-store` nas respostas JSON.
-- Tela de login e estado autenticado inicial no frontend.
+- Painel administrativo protegido por sessão.
+- Navegação em pt-BR: Visão geral, Publicações, Produtos, Automações, Histórico, Segurança e Configurações.
+- CRUD inicial de publicações, produtos e regras de automação.
+- Listagens sempre limitadas ao `user.id` autenticado.
+- Verificação de propriedade das relações entre publicação, conta e produto.
+- Proteção contra IDOR/BOLA nas rotas por identificador.
+- Validação estrita com Zod.
+- URL de produto limitada a HTTPS absoluto, sem credenciais embutidas.
+- Templates de DM limitados às variáveis aprovadas `{{nome}}` e `{{link_produto}}`.
+- Normalização de palavras-chave e constraint de unicidade por publicação.
+- Ativação/desativação de automações.
+- Auditoria de criação, alteração e exclusão dos recursos administrativos.
+- Interface sem exposição de tokens ou segredos.
+- Cadastro manual de publicação mantido temporariamente até a integração oficial Meta.
 
 ### Preservado
 
-A estrutura React/Worker/D1 e a documentação existente foram preservadas. Nenhuma integração Meta foi adicionada nesta fase.
+- Autenticação e sessão da Fase 3.
+- Estrutura React + TypeScript + Vite + Worker + D1.
+- Migration inicial e migration de autenticação.
+- Documentação e nenhuma integração não oficial com Instagram.
 
 ### Testado / verificado
 
-- Commits e arquivos da Fase 2 foram inspecionados antes das alterações.
-- Código de autenticação foi revisado para não retornar ou registrar credenciais, cookies ou tokens.
-- `npm run typecheck`, `npm run lint`, `npm run build` e migrations ainda **não foram executados neste ambiente**; portanto não são declarados aprovados.
+- Estado do repositório e commits recentes foram inspecionados antes das alterações.
+- Código foi revisado para garantir escopo por proprietário nas consultas e validação dos relacionamentos.
+- `npm run typecheck`, `npm run lint`, `npm run build` e migrations **ainda não foram executados neste ambiente**; portanto não são declarados aprovados.
 
 ### Segurança
 
-- Não foi criado nem armazenado segredo real.
-- Não há token de sessão no código-fonte.
-- O token bruto de sessão é entregue somente por cookie seguro e o banco armazena apenas seu hash.
-- Falhas de login usam mensagem genérica.
+- Nenhuma URL recebida de webhook é usada nesta fase.
+- URL de produto aceita somente `https:` e rejeita URLs com usuário/senha embutidos.
+- IDs fornecidos pelo cliente nunca são usados sem uma consulta de propriedade pelo usuário autenticado.
+- Templates não permitem variáveis arbitrárias, HTML/JS ou execução de código.
+- Respostas JSON permanecem `no-store` e com headers de segurança.
 
-### Próximo passo — Fase 4
+### Próximo passo — Fase 5
 
-Implementar o painel administrativo protegido e o CRUD inicial de publicações, produtos e regras, com autorização por proprietário em cada consulta. Antes da integração Meta, as capacidades e permissões oficiais vigentes deverão ser verificadas na documentação atual da Meta.
+Preparar a integração oficial com Instagram/Meta: confirmar documentação vigente, versão da Graph API, permissões, fluxo OAuth, eventos de comentário/messaging, formato e validação de webhooks e restrições de envio de DM antes de implementar qualquer chamada real.

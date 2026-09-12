@@ -4,6 +4,20 @@ Todas as alterações relevantes do projeto devem ser registradas aqui.
 
 ## [Não lançado]
 
+### Fase 4 — Painel administrativo e CRUD inicial
+
+- Adicionado painel administrativo protegido por sessão.
+- Adicionada navegação em pt-BR para as áreas administrativas principais.
+- Implementados endpoints protegidos de publicações, produtos e automações.
+- Implementados escopos por proprietário e verificações de relacionamento para evitar IDOR/BOLA.
+- Adicionada validação de URL de produto exclusivamente HTTPS.
+- Adicionadas variáveis de template permitidas `{{nome}}` e `{{link_produto}}`.
+- Adicionada normalização de palavra-chave e tratamento de conflito de unicidade.
+- Adicionada ativação/desativação de automações.
+- Adicionada auditoria de alterações administrativas.
+- Não adicionada integração Meta nesta fase.
+- Typecheck, lint, build e migrations ainda não foram declarados como aprovados.
+
 ### Fase 3 — Autenticação e sessões seguras
 
 - Adicionada migration `0001_auth.sql` com sessões e controle de tentativas de autenticação.
