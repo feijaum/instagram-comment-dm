@@ -4,6 +4,17 @@ Todas as alterações relevantes do projeto devem ser registradas aqui.
 
 ## [Não lançado]
 
+### Segurança — Primeiro acesso administrativo
+
+- Adicionada migration `0002_admin_bootstrap.sql` com marcador de bootstrap de uso único.
+- Adicionado endpoint `POST /api/auth/bootstrap` protegido por Secret do Cloudflare `ADMIN_BOOTSTRAP_TOKEN`.
+- O bootstrap só funciona quando ainda não existe administrador/usuário e o marcador de bootstrap não foi utilizado.
+- A criação do primeiro usuário, o bloqueio do bootstrap e a auditoria são realizados atomicamente no D1.
+- A senha do primeiro administrador é armazenada somente como hash PBKDF2-HMAC-SHA-256; nenhuma credencial é gravada no código ou frontend.
+- Adicionada validação estrita de e-mail e senha e proteção de origem.
+- Documentada a configuração do Secret no `.env.example`.
+- Após o primeiro uso, o bootstrap permanece bloqueado mesmo que o usuário inicial seja removido.
+
 ### Correção — Build do frontend
 
 - Corrigido `src/main.tsx`, que estava truncado durante a implementação do painel administrativo.
