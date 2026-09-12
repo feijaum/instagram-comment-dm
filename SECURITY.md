@@ -4,27 +4,22 @@ Este projeto trata segurança, privacidade e confiabilidade como requisitos de p
 
 ## Segredos
 
-Nunca armazenar no repositório ou no frontend:
-
-- tokens da Meta/Instagram;
-- client secrets e API secrets;
-- senhas em texto puro;
-- segredos de sessão;
-- credenciais de banco;
-- chaves privadas;
-- dados sensíveis de configuração.
-
-Segredos devem ser fornecidos por mecanismos apropriados de secret management/runtime e nunca devem aparecer em logs, respostas de API, mensagens de erro ou localStorage.
+Nunca armazenar no repositório ou no frontend tokens da Meta/Instagram, client/API secrets, senhas em texto puro, segredos de sessão, credenciais de banco, chaves privadas ou dados sensíveis de configuração. Segredos devem ser fornecidos por secret management/runtime e nunca aparecer em logs, respostas de API, mensagens de erro ou localStorage.
 
 ## Autenticação e sessão
 
-Se houver autenticação própria com senha:
+A Fase 3 implementa:
 
-- armazenar somente hashes seguros;
-- usar sessões seguras;
-- preferir cookies `HttpOnly`, `Secure` e `SameSite` adequados;
-- aplicar expiração e invalidação de sessão;
-- registrar tentativas relevantes sem registrar credenciais.
+- hash de senha com PBKDF2-HMAC-SHA-256 e salt aleatório;
+- sessões aleatórias armazenadas somente como hash no D1;
+- cookie `__Host-session` com `HttpOnly`, `Secure`, `SameSite=Strict` e `Path=/`;
+- expiração de sessão e logout com revogação;
+- respostas genéricas para falhas de credencial;
+- limitação de tentativas de login por identificador;
+- proteção de origem para operações de alteração de estado;
+- auditoria de login e logout sem registrar credenciais.
+
+O endpoint de autenticação nunca retorna senha, hash, token de sessão ou segredo.
 
 ## Autorização
 
@@ -32,17 +27,11 @@ Toda requisição a recurso protegido deve verificar autenticação e autorizaç
 
 ## Entrada e saída
 
-Validar entradas e saídas com schemas. Aplicar controles contra:
+Validar entradas e saídas com schemas. Aplicar controles contra SQL injection, XSS, CSRF quando aplicável, payloads malformados, parâmetros inesperados, URLs perigosas e abuso de endpoints. Não executar HTML, JavaScript ou código arbitrário recebido de templates ou webhooks.
 
-- SQL injection;
-- XSS;
-- CSRF quando aplicável;
-- payloads malformados;
-- parâmetros inesperados;
-- URLs perigosas;
-- abuso de endpoints.
+## Headers
 
-Não executar HTML, JavaScript ou código arbitrário recebido de templates ou webhooks.
+Respostas JSON da API aplicam `Cache-Control: no-store`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` e uma política CSP restritiva.
 
 ## URLs
 
@@ -50,54 +39,20 @@ Produtos aceitam somente URLs HTTPS cadastradas pelo administrador. Rejeitar esq
 
 ## Webhooks
 
-- validar assinatura conforme a documentação oficial atual da Meta;
-- rejeitar assinatura inválida;
-- validar método, estrutura e conteúdo;
-- rejeitar eventos desconhecidos ou não autorizados;
-- identificar conta e publicação por configuração confiável;
-- garantir idempotência em nível de banco;
-- não registrar payloads sensíveis desnecessariamente.
+Validar assinatura conforme a documentação oficial atual da Meta; rejeitar assinatura inválida; validar método, estrutura e conteúdo; rejeitar eventos desconhecidos ou não autorizados; identificar conta e publicação por configuração confiável; garantir idempotência em nível de banco; não registrar payloads sensíveis desnecessariamente.
 
 ## Anti-spam e abuso
 
-Aplicar limites configuráveis por:
-
-- usuário do Instagram;
-- publicação;
-- conta;
-- sistema/global.
-
-Também prevenir mensagens duplicadas, replay, retries descontrolados, loops, floods e abuso da API.
-
-Deve existir uma ação global de emergência para `PAUSAR TODAS AS AUTOMAÇÕES`.
+Aplicar limites configuráveis por usuário do Instagram, publicação, conta e sistema/global. Também prevenir mensagens duplicadas, replay, retries descontrolados, loops, floods e abuso da API. Deve existir uma ação global de emergência para `PAUSAR TODAS AS AUTOMAÇÕES`.
 
 ## Auditoria
 
-Registrar eventos de segurança e alterações administrativas relevantes, incluindo login/falha, conexão/desconexão, criação/edição/exclusão de configurações, ativação/desativação e pausa de emergência.
-
-Logs nunca devem conter tokens, senhas, cookies, segredos ou dados pessoais desnecessários.
+Registrar eventos de segurança e alterações administrativas relevantes. Logs nunca devem conter tokens, senhas, cookies, segredos ou dados pessoais desnecessários.
 
 ## Meta/Instagram
 
 Somente APIs oficiais serão utilizadas. Não implementar scraping, automação de navegador, endpoints não oficiais ou métodos para contornar restrições da Meta.
 
-Antes de liberar a integração em produção, confirmar na documentação oficial vigente da Meta as permissões, versão da API, fluxo de autenticação, formato dos webhooks, recursos de comentários/mensagens e respectivas restrições.
-
 ## Validação antes de produção
 
-A suíte de segurança deve cobrir, no mínimo:
-
-- autenticação e autorização;
-- IDOR/BOLA;
-- rate limiting;
-- idempotência;
-- validação de webhook e assinatura;
-- eventos duplicados;
-- payloads maliciosos;
-- XSS;
-- SQL injection;
-- validação de URLs;
-- templates e variáveis permitidas;
-- mocks do envio de DM.
-
-Nenhuma etapa deve ser declarada concluída sem evidência de validação correspondente.
+A suíte deve cobrir autenticação, autorização, IDOR/BOLA, rate limiting, idempotência, webhook/assinatura, duplicidade, payloads maliciosos, XSS, SQL injection, URLs, templates e mocks de DM. Nenhuma etapa deve ser declarada concluída sem evidência de validação correspondente.
