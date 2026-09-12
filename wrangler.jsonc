@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "instagram_comment_dm",
-      "database_id": "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID",
+      "database_id": "11696a30-f7a0-499f-92bc-ef4e19649083",
       "migrations_dir": "migrations"
     }
   ]
