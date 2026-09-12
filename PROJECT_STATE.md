@@ -1,64 +1,45 @@
 # Estado do Projeto
 
-## 2026-09-12 — Fase 2
+## 2026-09-12 — Fase 3
 
-### Estado encontrado
+### Estado encontrado antes da fase
 
-- Repositório `feijaum/instagram-comment-dm` acessível no GitHub.
-- Branch padrão: `main`.
-- Fase 1 havia deixado somente documentação e baseline de segurança.
-- Não havia aplicação ou schema de banco implementado antes desta fase.
+- Repositório `feijaum/instagram-comment-dm` com base React + TypeScript + Vite, Worker, D1 schema e documentação.
+- Nenhuma implementação de autenticação anterior existia.
+- A migration inicial já possuía `users`, incluindo `password_hash`, e as demais entidades do domínio.
 
 ### Implementado
 
-- Estrutura React + TypeScript + Vite.
-- Integração de build com Cloudflare Workers via plugin oficial do Cloudflare.
-- Configuração inicial do Wrangler.
-- Binding D1 `DB` preparado, sem criação/configuração de banco remoto nesta fase.
-- Migração `0000_initial_schema.sql` com entidades e constraints de integridade.
-- Worker inicial com endpoint `GET /api/health` e resposta 404 para API desconhecida.
-- Shell inicial da interface administrativa em pt-BR.
-- Configuração de TypeScript estrito e ESLint.
-- `.gitignore` e `.env.example` sem valores secretos.
-- README atualizado para refletir a fase real.
-
-### Banco de dados
-
-A migração inicial contém:
-
-- `users`
-- `instagram_accounts`
-- `posts`
-- `products`
-- `automation_rules`
-- `webhook_events`
-- `automation_logs`
-- `audit_logs`
-- `rate_limits`
-- `system_settings`
-
-Foram adicionados índices e constraints de unicidade para vínculos, integridade e idempotência. Tokens de terceiros, quando futuramente armazenados, possuem campo separado para ciphertext; nenhum token real foi criado.
+- Migration `0001_auth.sql` com `sessions` e `auth_attempts`.
+- Hash de senha PBKDF2-HMAC-SHA-256 com salt aleatório e custo configurado.
+- Sessões com token aleatório; somente o hash do token é persistido.
+- Cookie de sessão `__Host-session` com `HttpOnly`, `Secure` e `SameSite=Strict`.
+- Expiração de sessão em 8 horas e revogação no logout.
+- Rate limit de tentativas de login por identificador.
+- Validação Zod estrita do payload de login.
+- Endpoints `POST /api/auth/login`, `GET /api/auth/me` e `POST /api/auth/logout`.
+- Auditoria de login/logout sem credenciais ou tokens.
+- Verificação de origem para operações de alteração de estado.
+- Headers de segurança e `Cache-Control: no-store` nas respostas JSON.
+- Tela de login e estado autenticado inicial no frontend.
 
 ### Preservado
 
-- Toda a documentação da Fase 1 foi preservada e apenas atualizada onde necessário.
-- Nenhum segredo, token ou credencial foi adicionado.
-- Nenhuma integração real com Instagram/Meta foi ativada.
-- Nenhum banco remoto foi criado ou modificado.
+A estrutura React/Worker/D1 e a documentação existente foram preservadas. Nenhuma integração Meta foi adicionada nesta fase.
 
 ### Testado / verificado
 
-- Estrutura e arquivos foram gravados no branch `main` por commits verificáveis.
-- Documentação oficial atual do Cloudflare foi consultada para confirmar a abordagem React + Vite + Workers e D1 migrations.
-- `npm install`, `typecheck`, `lint`, `build` e aplicação da migração ainda NÃO foram executados neste ambiente; portanto, nenhum deles é declarado como aprovado.
+- Commits e arquivos da Fase 2 foram inspecionados antes das alterações.
+- Código de autenticação foi revisado para não retornar ou registrar credenciais, cookies ou tokens.
+- `npm run typecheck`, `npm run lint`, `npm run build` e migrations ainda **não foram executados neste ambiente**; portanto não são declarados aprovados.
 
 ### Segurança
 
-- O frontend não recebe tokens ou segredos.
-- `.env`, `.dev.vars` e `.wrangler` estão ignorados pelo Git.
-- O Worker não implementa autenticação ainda; isso está explicitamente reservado para a Fase 3.
-- A configuração D1 usa um placeholder de `database_id`; não existe credencial ou ID real no repositório.
+- Não foi criado nem armazenado segredo real.
+- Não há token de sessão no código-fonte.
+- O token bruto de sessão é entregue somente por cookie seguro e o banco armazena apenas seu hash.
+- Falhas de login usam mensagem genérica.
 
-### Próximo passo — Fase 3
+### Próximo passo — Fase 4
 
-Implementar autenticação segura e sessões, incluindo hash de senha, cookies `HttpOnly`/`Secure`/`SameSite`, proteção contra enumeração e brute force, autorização por usuário/recurso e auditoria dos eventos de autenticação.
+Implementar o painel administrativo protegido e o CRUD inicial de publicações, produtos e regras, com autorização por proprietário em cada consulta. Antes da integração Meta, as capacidades e permissões oficiais vigentes deverão ser verificadas na documentação atual da Meta.
