@@ -4,21 +4,22 @@ import type { Env } from "./admin-api";
 
 const MIN_PASSWORD_LENGTH = 6;
 const INITIAL_ADMIN_EMAIL = "jvleite7" + "@gmail.com";
-const loginSchema = z.object({ email:z.string().trim().email().max(254), password:z.string().min(MIN_PASSWORD_LENGTH).max(128) }).strict();
+const loginSchema = z.object({ login:z.string().trim().min(1).max(254), password:z.string().min(MIN_PASSWORD_LENGTH).max(128) }).strict();
 const passwordSchema = z.object({ current_password:z.string().min(MIN_PASSWORD_LENGTH).max(128), new_password:z.string().min(MIN_PASSWORD_LENGTH).max(128) }).strict().refine(v=>v.current_password!==v.new_password,{message:"different"});
 
 function json(data:unknown,init:ResponseInit={}):Response{const headers=new Headers(init.headers);headers.set("content-type","application/json; charset=utf-8");headers.set("cache-control","no-store");headers.set("x-content-type-options","nosniff");headers.set("x-frame-options","DENY");headers.set("referrer-policy","no-referrer");headers.set("permissions-policy","camera=(), microphone=(), geolocation=()");headers.set("content-security-policy","default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");return new Response(JSON.stringify(data),{...init,headers})}
-function fail(){return json({error:"E-mail ou senha inválidos."},{status:401})}
+function fail(){return json({error:"Usuário ou senha inválidos."},{status:401})}
 
 export async function login(request:Request,env:Env){
  if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});
  let body:unknown;try{body=await request.json()}catch{return json({error:"JSON inválido."},{status:400})}
  const parsed=loginSchema.safeParse(body);if(!parsed.success)return json({error:`A senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`},{status:400});
- const email=parsed.data.email.toLowerCase();
- if(await isLoginRateLimited(env.DB,email))return json({error:"Muitas tentativas. Tente novamente mais tarde."},{status:429});
- const user=await env.DB.prepare("SELECT id,email,password_hash,is_active FROM users WHERE email=?1 LIMIT 1").bind(email).first<{id:string;email:string;password_hash:string;is_active:number}>();
- if(!user||!user.is_active){await recordLoginAttempt(env.DB,email,false);return fail()}
- const valid=await verifyPassword(parsed.data.password,user.password_hash);await recordLoginAttempt(env.DB,email,valid);if(!valid)return fail();
+ const identifier=parsed.data.login.trim();
+ const normalizedIdentifier=identifier.toLowerCase();
+ if(await isLoginRateLimited(env.DB,normalizedIdentifier))return json({error:"Muitas tentativas. Tente novamente mais tarde."},{status:429});
+ const user=await env.DB.prepare("SELECT id,email,password_hash,is_active FROM users WHERE username=?1 COLLATE NOCASE OR email=?1 COLLATE NOCASE LIMIT 1").bind(identifier).first<{id:string;email:string;password_hash:string;is_active:number}>();
+ if(!user||!user.is_active){await recordLoginAttempt(env.DB,normalizedIdentifier,false);return fail()}
+ const valid=await verifyPassword(parsed.data.password,user.password_hash);await recordLoginAttempt(env.DB,normalizedIdentifier,valid);if(!valid)return fail();
  await env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,outcome) VALUES (?1,?2,'login','session','success')").bind(crypto.randomUUID(),user.id).run();
  return createSession(env.DB,{id:user.id,email:user.email});
 }
