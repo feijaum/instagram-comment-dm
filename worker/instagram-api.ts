@@ -2,7 +2,7 @@ import type { Env } from "./admin-api";
 import { getSessionUser, isSameOrigin } from "./auth";
 
 type InstagramProfile = { id?: string; user_id?: string; username?: string };
-type InstagramMedia = { id?: string; caption?: string; permalink?: string; media_type?: string; timestamp?: string };
+type InstagramMedia = { id?: string; caption?: string; permalink?: string; media_type?: string; media_url?: string; thumbnail_url?: string; timestamp?: string };
 type InstagramMediaResponse = { data?: InstagramMedia[]; paging?: { next?: string } };
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -76,7 +76,7 @@ export async function syncInstagram(request: Request, env: Env): Promise<Respons
     }
 
     const mediaUrl = new URL("https://graph.instagram.com/me/media");
-    mediaUrl.searchParams.set("fields", "id,caption,permalink,media_type,timestamp");
+    mediaUrl.searchParams.set("fields", "id,caption,permalink,media_type,media_url,thumbnail_url,timestamp");
     mediaUrl.searchParams.set("limit", "100");
     const mediaResponse = await graphJson<InstagramMediaResponse>(mediaUrl.toString(), env.INSTAGRAM_ACCESS_TOKEN);
     let synchronized = 0;
@@ -84,17 +84,19 @@ export async function syncInstagram(request: Request, env: Env): Promise<Respons
     for (const media of mediaResponse.data ?? []) {
       if (!media.id) continue;
       const title = (media.caption?.trim() || `${media.media_type ?? "Publicação"} · ${media.id}`).slice(0, 200);
+      const thumbnailUrl = media.thumbnail_url ?? media.media_url ?? null;
+      const permalink = media.permalink ?? null;
       const existing = await env.DB.prepare(
         "SELECT id FROM posts WHERE instagram_account_id=?1 AND provider_post_id=?2 LIMIT 1",
       ).bind(account.id, media.id).first<{ id: string }>();
       if (existing) {
         await env.DB.prepare(
-          "UPDATE posts SET title=?1,is_active=1,updated_at=datetime('now') WHERE id=?2",
-        ).bind(title, existing.id).run();
+          "UPDATE posts SET title=?1,thumbnail_url=?2,permalink=?3,is_active=1,updated_at=datetime('now') WHERE id=?4",
+        ).bind(title, thumbnailUrl, permalink, existing.id).run();
       } else {
         await env.DB.prepare(
-          "INSERT INTO posts (id,user_id,instagram_account_id,provider_post_id,title,is_active) VALUES (?1,?2,?3,?4,?5,1)",
-        ).bind(crypto.randomUUID(), owner.id, account.id, media.id, title).run();
+          "INSERT INTO posts (id,user_id,instagram_account_id,provider_post_id,title,thumbnail_url,permalink,is_active) VALUES (?1,?2,?3,?4,?5,?6,?7,1)",
+        ).bind(crypto.randomUUID(), owner.id, account.id, media.id, title, thumbnailUrl, permalink).run();
       }
       synchronized += 1;
     }
