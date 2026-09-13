@@ -22,6 +22,22 @@ async function graphJson<T>(url: string, accessToken: string): Promise<T> {
   return body as T;
 }
 
+async function subscribeInstagramWebhooks(accountId: string, accessToken: string): Promise<void> {
+  const url = new URL(`https://graph.instagram.com/${encodeURIComponent(accountId)}/subscribed_apps`);
+  url.searchParams.set("subscribed_fields", "comments,messages");
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok || body.success !== true) {
+    const error = body.error && typeof body.error === "object" ? body.error as Record<string, unknown> : {};
+    throw new Error(typeof error.message === "string"
+      ? `Não foi possível ativar os webhooks: ${error.message}`
+      : `Não foi possível ativar os webhooks (HTTP ${response.status}).`);
+  }
+}
+
 export async function syncInstagram(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, { status: 405 });
   if (!isSameOrigin(request)) return json({ error: "Origem não autorizada." }, { status: 403 });
@@ -40,6 +56,8 @@ export async function syncInstagram(request: Request, env: Env): Promise<Respons
     const profile = await graphJson<InstagramProfile>(profileUrl.toString(), env.INSTAGRAM_ACCESS_TOKEN);
     const providerAccountId = profile.user_id ?? profile.id;
     if (!providerAccountId) throw new Error("A Meta não retornou o ID da conta profissional.");
+
+    await subscribeInstagramWebhooks(providerAccountId, env.INSTAGRAM_ACCESS_TOKEN);
 
     let account = await env.DB.prepare(
       "SELECT id FROM instagram_accounts WHERE user_id=?1 AND provider_account_id=?2 LIMIT 1",
@@ -85,6 +103,7 @@ export async function syncInstagram(request: Request, env: Env): Promise<Respons
       success: true,
       account: { id: account.id, provider_account_id: providerAccountId, username: profile.username ?? "instagram" },
       synchronized,
+      webhook_subscribed: true,
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Falha ao sincronizar o Instagram." }, { status: 502 });
