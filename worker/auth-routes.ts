@@ -1,0 +1,40 @@
+import { z } from "zod";
+import { createSession, getSessionUser, hashPassword, isLoginRateLimited, isSameOrigin, recordLoginAttempt, revokeSession, verifyPassword } from "./auth";
+import type { Env } from "./admin-api";
+
+const MIN_PASSWORD_LENGTH = 6;
+const INITIAL_ADMIN_EMAIL = "jvleite7" + "@gmail.com";
+const loginSchema = z.object({ email:z.string().trim().email().max(254), password:z.string().min(MIN_PASSWORD_LENGTH).max(128) }).strict();
+const passwordSchema = z.object({ current_password:z.string().min(MIN_PASSWORD_LENGTH).max(128), new_password:z.string().min(MIN_PASSWORD_LENGTH).max(128) }).strict().refine(v=>v.current_password!==v.new_password,{message:"different"});
+
+function json(data:unknown,init:ResponseInit={}):Response{const headers=new Headers(init.headers);headers.set("content-type","application/json; charset=utf-8");headers.set("cache-control","no-store");headers.set("x-content-type-options","nosniff");headers.set("x-frame-options","DENY");headers.set("referrer-policy","no-referrer");headers.set("permissions-policy","camera=(), microphone=(), geolocation=()");headers.set("content-security-policy","default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");return new Response(JSON.stringify(data),{...init,headers})}
+function fail(){return json({error:"E-mail ou senha inválidos."},{status:401})}
+
+export async function login(request:Request,env:Env){
+ if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});
+ let body:unknown;try{body=await request.json()}catch{return json({error:"JSON inválido."},{status:400})}
+ const parsed=loginSchema.safeParse(body);if(!parsed.success)return json({error:`A senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`},{status:400});
+ const email=parsed.data.email.toLowerCase();
+ if(await isLoginRateLimited(env.DB,email))return json({error:"Muitas tentativas. Tente novamente mais tarde."},{status:429});
+ const user=await env.DB.prepare("SELECT id,email,password_hash,is_active FROM users WHERE email=?1 LIMIT 1").bind(email).first<{id:string;email:string;password_hash:string;is_active:number}>();
+ if(!user||!user.is_active){await recordLoginAttempt(env.DB,email,false);return fail()}
+ const valid=await verifyPassword(parsed.data.password,user.password_hash);await recordLoginAttempt(env.DB,email,valid);if(!valid)return fail();
+ await env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,outcome) VALUES (?1,?2,'login','session','success')").bind(crypto.randomUUID(),user.id).run();
+ return createSession(env.DB,{id:user.id,email:user.email});
+}
+
+export async function me(request:Request,env:Env){const user=await getSessionUser(env.DB,request);if(!user)return json({authenticated:false},{status:401});const row=await env.DB.prepare("SELECT must_change_password FROM users WHERE id=?1 LIMIT 1").bind(user.id).first<{must_change_password:number}>();return json({authenticated:true,user:{...user,must_change_password:Number(row?.must_change_password??0)},initial_admin:user.email.toLowerCase()===INITIAL_ADMIN_EMAIL})}
+
+export async function changePassword(request:Request,env:Env){
+ if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});
+ const user=await getSessionUser(env.DB,request);if(!user)return json({error:"Não autenticado."},{status:401});
+ let body:unknown;try{body=await request.json()}catch{return json({error:"JSON inválido."},{status:400})}
+ const parsed=passwordSchema.safeParse(body);if(!parsed.success)return json({error:`A nova senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres e ser diferente da senha atual.`},{status:400});
+ const row=await env.DB.prepare("SELECT password_hash FROM users WHERE id=?1 AND is_active=1 LIMIT 1").bind(user.id).first<{password_hash:string}>();if(!row)return json({error:"Usuário não encontrado."},{status:404});
+ if(!(await verifyPassword(parsed.data.current_password,row.password_hash)))return json({error:"Senha atual inválida."},{status:401});
+ const passwordHash=await hashPassword(parsed.data.new_password);await env.DB.prepare("UPDATE users SET password_hash=?1,must_change_password=0,updated_at=datetime('now') WHERE id=?2").bind(passwordHash,user.id).run();
+ await env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,resource_id,outcome) VALUES (?1,?2,'change_password','user',?2,'success')").bind(crypto.randomUUID(),user.id).run();
+ return json({success:true,message:"Senha alterada com sucesso."});
+}
+
+export async function logout(request:Request,env:Env){if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});const user=await getSessionUser(env.DB,request);const headers=await revokeSession(env.DB,request);if(user)await env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,outcome) VALUES (?1,?2,'logout','session','success')").bind(crypto.randomUUID(),user.id).run();return new Response(null,{status:204,headers})}
