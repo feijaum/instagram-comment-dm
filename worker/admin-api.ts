@@ -15,13 +15,7 @@ function noContent(){const headers=new Headers();headers.set("cache-control","no
 function id(){return crypto.randomUUID()} function normalizeKeyword(v:string){return v.normalize("NFKC").trim().toLocaleLowerCase("pt-BR")}
 function validProductUrl(v:string){try{const u=new URL(v);return u.protocol==="https:"&&!!u.hostname&&!u.username&&!u.password}catch{return false}}
 function validateTemplate(v:string){return (v.match(/{{[^{}]+}}/g)??[]).every(x=>approvedVariables.has(x))}
-// TEMPORÁRIO: acesso administrativo sem login solicitado para diagnóstico.
-async function auth(request:Request,env:Env):Promise<AuthUser|Response>{
- const sessionUser=await getSessionUser(env.DB,request);
- if(sessionUser)return sessionUser;
- const adminUser=await env.DB.prepare("SELECT id,email FROM users WHERE email='jvleite7@gmail.com' AND is_active=1 LIMIT 1").first<AuthUser>();
- return adminUser??json({error:"Administrador não encontrado."},{status:503});
-}
+async function auth(request:Request,env:Env):Promise<AuthUser|Response>{const user=await getSessionUser(env.DB,request);return user??json({error:"Não autenticado."},{status:401})}
 const badRequest=(m:string)=>json({error:m},{status:400});const notFound=()=>json({error:"Registro não encontrado."},{status:404});const conflict=(m:string)=>json({error:m},{status:409});
 async function audit(db:D1Database,userId:string,action:string,resourceType:string,resourceId:string){await db.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,resource_id,outcome) VALUES (?1,?2,?3,?4,?5,'success')").bind(id(),userId,action,resourceType,resourceId).run()}
 async function posts(request:Request,env:Env,user:AuthUser,idParam?:string):Promise<Response>{
