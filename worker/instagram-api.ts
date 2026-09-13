@@ -1,4 +1,5 @@
 import type { Env } from "./admin-api";
+import { getSessionUser, isSameOrigin } from "./auth";
 
 type InstagramProfile = { id?: string; user_id?: string; username?: string };
 type InstagramMedia = { id?: string; caption?: string; permalink?: string; media_type?: string; timestamp?: string };
@@ -23,6 +24,9 @@ async function graphJson<T>(url: string, accessToken: string): Promise<T> {
 
 export async function syncInstagram(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, { status: 405 });
+  if (!isSameOrigin(request)) return json({ error: "Origem não autorizada." }, { status: 403 });
+  const sessionUser = await getSessionUser(env.DB, request);
+  if (!sessionUser) return json({ error: "Não autenticado." }, { status: 401 });
   if (!env.INSTAGRAM_ACCESS_TOKEN) return json({ error: "INSTAGRAM_ACCESS_TOKEN não configurado." }, { status: 503 });
 
   const owner = await env.DB.prepare(
