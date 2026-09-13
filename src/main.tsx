@@ -2,7 +2,7 @@ import React, { FormEvent, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
-type User = { id: string; email: string };
+type User = { id: string; email: string; must_change_password?: number };
 type Post = { id: string; instagram_account_id: string; provider_post_id: string; title: string | null; is_active: number; instagram_username?: string };
 type Product = { id: string; name: string; product_url: string; is_active: number };
 type Automation = { id: string; post_id: string; product_id: string; keyword: string; dm_template: string; is_active: number; post_title?: string | null; product_name?: string };
@@ -44,6 +44,39 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
   </section></main>;
 }
 
+function ChangePassword({ user, onChanged }: { user: User; onChanged: (user: User) => void }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    if (newPassword !== confirmation) { setError("A confirmação da nova senha não confere."); return; }
+    setLoading(true);
+    try {
+      await requestJson("/api/auth/change-password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) });
+      onChanged({ ...user, must_change_password: 0 });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível alterar a senha.");
+    } finally { setLoading(false); }
+  }
+
+  return <main className="app-shell"><section className="card auth-card">
+    <span className="eyebrow">Primeiro acesso</span><h1>Altere sua senha</h1>
+    <p>Por segurança, a senha inicial precisa ser substituída antes de acessar o painel.</p>
+    <form onSubmit={submit}>
+      <label>Senha atual<input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" minLength={6} required /></label>
+      <label>Nova senha<input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" minLength={6} required /></label>
+      <label>Confirmar nova senha<input type="password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} autoComplete="new-password" minLength={6} required /></label>
+      {error && <div className="error" role="alert">{error}</div>}
+      <button type="submit" disabled={loading}>{loading ? "Salvando…" : "Alterar senha"}</button>
+    </form>
+  </section></main>;
+}
+
 function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [section, setSection] = useState("dashboard");
   const [posts, setPosts] = useState<Post[]>([]);
@@ -65,6 +98,14 @@ function Products({ products, reload, remove }: { products: Product[]; reload: (
 
 function Automations({ items, posts, products, reload, toggle, remove }: { items: Automation[]; posts: Post[]; products: Product[]; reload: () => Promise<void>; toggle: (automation: Automation) => Promise<void>; remove: (path: string, label: string) => Promise<void> }) { const [post, setPost] = useState(""); const [product, setProduct] = useState(""); const [keyword, setKeyword] = useState(""); const [template, setTemplate] = useState("Olá, {{nome}}! Aqui está o produto que você pediu: {{link_produto}}"); const [error, setError] = useState(""); async function submit(event: FormEvent) { event.preventDefault(); setError(""); try { await requestJson("/api/automation-rules", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ post_id: post, product_id: product, keyword, dm_template: template, is_active: false }) }); setKeyword(""); await reload(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível cadastrar."); } } return <><section className="card"><h2>Nova automação</h2><p className="muted">Variáveis permitidas: <code>{"{{nome}}"}</code> e <code>{"{{link_produto}}"}</code>.</p><form className="form-grid" onSubmit={submit}><label>Publicação<select value={post} onChange={(e) => setPost(e.target.value)} required><option value="">Selecione uma publicação</option>{posts.map((item) => <option key={item.id} value={item.id}>{item.title || item.provider_post_id}</option>)}</select></label><label>Produto<select value={product} onChange={(e) => setProduct(e.target.value)} required><option value="">Selecione um produto</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Palavra-chave<input value={keyword} onChange={(e) => setKeyword(e.target.value)} maxLength={80} placeholder="Ex.: quero" required /></label><label>Mensagem da DM<textarea value={template} onChange={(e) => setTemplate(e.target.value)} maxLength={2000} required /></label><button type="submit">Cadastrar automação</button></form>{error && <div className="error">{error}</div>}</section><section className="card"><h2>Automações cadastradas</h2>{items.length === 0 ? <p className="muted">Nenhuma automação cadastrada.</p> : <div className="list">{items.map((item) => <article className="list-item" key={item.id}><div><strong>{item.keyword}</strong><small>{item.post_title || item.post_id} · {item.product_name || item.product_id}</small></div><div className="actions"><button onClick={() => toggle(item)}>{item.is_active ? "Desativar" : "Ativar"}</button><button className="danger" onClick={() => remove(`/api/automation-rules/${item.id}`, "a automação")}>Excluir</button></div></article>)}</div>}</section></>; }
 
-function App() { const [user, setUser] = useState<User | null>(null); const [checking, setChecking] = useState(true); useEffect(() => { requestJson<{ user: User }>("/api/auth/me").then((data) => setUser(data.user)).catch(() => setUser(null)).finally(() => setChecking(false)); }, []); if (checking) return <main className="app-shell"><section className="card"><p>Verificando sessão…</p></section></main>; if (!user) return <Login onLogin={setUser} />; return <Dashboard user={user} onLogout={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); setUser(null); }} />; }
+function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [checking, setChecking] = useState(true);
+  useEffect(() => { requestJson<{ user: User }>("/api/auth/me").then((data) => setUser(data.user)).catch(() => setUser(null)).finally(() => setChecking(false)); }, []);
+  if (checking) return <main className="app-shell"><section className="card"><p>Verificando sessão…</p></section></main>;
+  if (!user) return <Login onLogin={setUser} />;
+  if (Number(user.must_change_password) === 1) return <ChangePassword user={user} onChanged={setUser} />;
+  return <Dashboard user={user} onLogout={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); setUser(null); }} />;
+}
 
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
