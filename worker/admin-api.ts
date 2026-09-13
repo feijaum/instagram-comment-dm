@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getSessionUser, isSameOrigin } from "./auth";
 
-export interface Env { DB:D1Database; INSTAGRAM_TOKEN_ENCRYPTION_KEY?:string; SESSION_SECRET?:string; ADMIN_BOOTSTRAP_TOKEN?:string }
+export interface Env { DB:D1Database; INSTAGRAM_TOKEN_ENCRYPTION_KEY?:string; INSTAGRAM_ACCESS_TOKEN?:string; META_APP_SECRET?:string; META_WEBHOOK_VERIFY_TOKEN?:string; SESSION_SECRET?:string; ADMIN_BOOTSTRAP_TOKEN?:string }
 type AuthUser={id:string;email:string};
 const postCreate=z.object({instagram_account_id:z.string().uuid(),provider_post_id:z.string().trim().min(1).max(255),title:z.string().trim().max(200).nullable().optional()}).strict();
 const postPatch=postCreate.partial();
