@@ -1,5 +1,5 @@
 import { handleAdminApi, type Env } from "./admin-api";
-import { changePassword, login, logout, me } from "./auth-routes";
+import { changePassword, login, logout, me, recoverInitialAdmin } from "./auth-routes";
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -24,6 +24,7 @@ export default {
     if (request.method === "GET" && url.pathname === "/api/auth/me") return me(request, env);
     if (request.method === "POST" && url.pathname === "/api/auth/logout") return logout(request, env);
     if (request.method === "POST" && url.pathname === "/api/auth/change-password") return changePassword(request, env);
+    if (request.method === "POST" && url.pathname === "/api/auth/recover-initial-admin") return recoverInitialAdmin(request, env);
 
     if (url.pathname.startsWith("/api/posts") || url.pathname.startsWith("/api/products") || url.pathname.startsWith("/api/automation-rules")) {
       return handleAdminApi(request, env, url.pathname);
