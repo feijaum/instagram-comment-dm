@@ -15,7 +15,7 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T
 }
 
 function Login({ onLogin }: { onLogin: (user: User) => void }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("ADM");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
     setError("");
     setLoading(true);
     try {
-      await requestJson("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
+      await requestJson("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: username, password }) });
       const session = await requestJson<{ user: User }>("/api/auth/me");
       onLogin(session.user);
     } catch (cause) {
@@ -36,7 +36,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
   return <main className="app-shell"><section className="card auth-card">
     <span className="eyebrow">Instagram Comment DM</span><h1>Entrar</h1><p>Acesse o painel administrativo com sua conta.</p>
     <form onSubmit={submit}>
-      <label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required /></label>
+      <label>Usuário<input type="text" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required /></label>
       <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" minLength={6} required /></label>
       {error && <div className="error" role="alert">{error}</div>}
       <button type="submit" disabled={loading}>{loading ? "Entrando…" : "Entrar"}</button>
@@ -104,7 +104,6 @@ function App() {
   useEffect(() => { requestJson<{ user: User }>("/api/auth/me").then((data) => setUser(data.user)).catch(() => setUser(null)).finally(() => setChecking(false)); }, []);
   if (checking) return <main className="app-shell"><section className="card"><p>Verificando sessão…</p></section></main>;
   if (!user) return <Login onLogin={setUser} />;
-  if (Number(user.must_change_password) === 1) return <ChangePassword user={user} onChanged={setUser} />;
   return <Dashboard user={user} onLogout={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); setUser(null); }} />;
 }
 
