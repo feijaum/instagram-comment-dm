@@ -30,10 +30,13 @@ form.addEventListener("submit", async (event) => {
       }),
     });
 
-    const data = await response.json().catch(() => ({}));
+    const responseText = await response.text();
+    let data = {};
+    try { data = responseText ? JSON.parse(responseText) : {}; } catch { data = {}; }
 
     if (!response.ok) {
-      showMessage(data.error || "Não foi possível cadastrar a primeira senha.", "error");
+      const detail = data.error || `Falha HTTP ${response.status}. O Worker não retornou uma mensagem JSON.`;
+      showMessage(detail, "error");
       return;
     }
 
