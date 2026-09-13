@@ -38,3 +38,58 @@ export async function changePassword(request:Request,env:Env){
 }
 
 export async function logout(request:Request,env:Env){if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});const user=await getSessionUser(env.DB,request);const headers=await revokeSession(env.DB,request);if(user)await env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,outcome) VALUES (?1,?2,'logout','session','success')").bind(crypto.randomUUID(),user.id).run();return new Response(null,{status:204,headers})}
+
+const initialPasswordSchema = z.object({
+  email: z.string().trim().email().max(254),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(128),
+}).strict();
+
+async function tokenMatches(provided: string, expected: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [providedDigest, expectedDigest] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(provided)),
+    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
+  ]);
+  const left = new Uint8Array(providedDigest);
+  const right = new Uint8Array(expectedDigest);
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) difference |= left[index] ^ right[index];
+  return difference === 0;
+}
+
+export async function setInitialPassword(request: Request, env: Env) {
+  if (!isSameOrigin(request)) return json({ error: "Origem não autorizada." }, { status: 403 });
+  if (!env.ADMIN_BOOTSTRAP_TOKEN || env.ADMIN_BOOTSTRAP_TOKEN.length < 32) {
+    return json({ error: "Token de primeiro acesso não configurado no Cloudflare." }, { status: 503 });
+  }
+
+  const providedToken = request.headers.get("x-admin-bootstrap-token") ?? "";
+  if (providedToken.length < 32 || !(await tokenMatches(providedToken, env.ADMIN_BOOTSTRAP_TOKEN))) {
+    return json({ error: "Token de primeiro acesso inválido." }, { status: 401 });
+  }
+
+  let body: unknown;
+  try { body = await request.json(); } catch { return json({ error: "JSON inválido." }, { status: 400 }); }
+  const parsed = initialPasswordSchema.safeParse(body);
+  if (!parsed.success || parsed.data.email.toLowerCase() !== INITIAL_ADMIN_EMAIL) {
+    return json({ error: "Dados do primeiro acesso inválidos." }, { status: 400 });
+  }
+
+  const user = await env.DB.prepare(
+    "SELECT id,must_change_password FROM users WHERE email=?1 AND is_active=1 LIMIT 1",
+  ).bind(INITIAL_ADMIN_EMAIL).first<{ id: string; must_change_password: number }>();
+
+  if (!user) return json({ error: "Administrador inicial não encontrado." }, { status: 404 });
+  if (Number(user.must_change_password) !== 1) {
+    return json({ error: "A primeira senha já foi cadastrada." }, { status: 409 });
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET password_hash=?1,must_change_password=0,updated_at=datetime('now') WHERE id=?2 AND must_change_password=1").bind(passwordHash, user.id),
+    env.DB.prepare("DELETE FROM sessions WHERE user_id=?1").bind(user.id),
+    env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,resource_id,outcome) VALUES (?1,?2,'set_initial_password','user',?2,'success')").bind(crypto.randomUUID(), user.id),
+  ]);
+
+  return json({ success: true, message: "Primeira senha cadastrada com sucesso." });
+}
