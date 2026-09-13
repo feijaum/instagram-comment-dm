@@ -64,7 +64,7 @@ async function isTargetPublication(mediaId: string, accessToken: string): Promis
   url.searchParams.set("fields", "permalink");
   const response = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
   if (!response.ok) return false;
-  const data = await response.json<{ permalink?: string }>();
+  const data = await response.json() as { permalink?: string };
   return typeof data.permalink === "string" && data.permalink.includes(`/${TARGET_SHORTCODE}/`);
 }
 
