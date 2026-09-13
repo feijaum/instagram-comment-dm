@@ -4,6 +4,16 @@ Todas as alterações relevantes do projeto devem ser registradas aqui.
 
 ## [Não lançado]
 
+### Segurança — Primeiro acesso administrativo via interface
+
+- Adicionada página dedicada `/primeiro-acesso.html` para criação do primeiro administrador sem uso do DevTools Console.
+- Adicionado formulário em pt-BR para e-mail, senha e token de primeiro acesso.
+- O token é enviado somente no header `x-admin-bootstrap-token` por HTTPS e não é colocado em URL, armazenamento local ou resposta.
+- Senha e token são limpos da página após uma criação bem-sucedida.
+- Adicionados headers de segurança e `Cache-Control: no-store` para a página e seu JavaScript.
+- Página marcada como `noindex,nofollow,noarchive`.
+- Mantido o bloqueio permanente do bootstrap após o primeiro uso.
+
 ### Segurança — Primeiro acesso administrativo
 
 - Adicionada migration `0002_admin_bootstrap.sql` com marcador de bootstrap de uso único.
