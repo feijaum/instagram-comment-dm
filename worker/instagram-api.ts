@@ -109,3 +109,15 @@ export async function syncInstagram(request: Request, env: Env): Promise<Respons
     return json({ error: error instanceof Error ? error.message : "Falha ao sincronizar o Instagram." }, { status: 502 });
   }
 }
+
+export async function instagramDiagnostics(request:Request,env:Env):Promise<Response>{
+ if(request.method!=="GET")return json({error:"Método não permitido."},{status:405});
+ const sessionUser=await getSessionUser(env.DB,request);
+ if(!sessionUser)return json({error:"Não autenticado."},{status:401});
+ const setting=await env.DB.prepare("SELECT value,updated_at FROM system_settings WHERE key='instagram_webhook_diagnostic' LIMIT 1").first<{value:string;updated_at:string}>();
+ const logs=await env.DB.prepare("SELECT l.status,l.error_code,l.created_at,r.keyword FROM automation_logs l LEFT JOIN automation_rules r ON r.id=l.automation_rule_id WHERE l.user_id=?1 ORDER BY l.created_at DESC LIMIT 10").bind(sessionUser.id).all();
+ let diagnostic:unknown=null;
+ try{diagnostic=setting?JSON.parse(setting.value):null}catch{diagnostic=setting?.value??null}
+ return json({diagnostic,updated_at:setting?.updated_at??null,logs:logs.results});
+}
+
