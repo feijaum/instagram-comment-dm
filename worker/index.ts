@@ -1,7 +1,7 @@
 import { handleAdminApi, type Env } from "./admin-api";
 import { changePassword, login, logout, me, setInitialPassword } from "./auth-routes";
 import { handleInstagramWebhook } from "./instagram-webhook";
-import { syncInstagram } from "./instagram-api";
+import { instagramDiagnostics, syncInstagram } from "./instagram-api";
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -21,6 +21,7 @@ export default {
 
     if (url.pathname === "/api/instagram/webhook") return handleInstagramWebhook(request, env);
     if (url.pathname === "/api/instagram/sync") return syncInstagram(request, env);
+    if (url.pathname === "/api/instagram/diagnostics") return instagramDiagnostics(request, env);
 
     if (request.method === "GET" && url.pathname === "/api/health") {
       return json({ status: "ok", service: "instagram-comment-dm" });
