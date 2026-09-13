@@ -12,8 +12,8 @@ function text(body: string, status = 200): Response {
 function constantTimeEqual(left:string,right:string):boolean{if(left.length!==right.length)return false;let difference=0;for(let index=0;index<left.length;index+=1)difference|=left.charCodeAt(index)^right.charCodeAt(index);return difference===0}
 function bytesToHex(bytes:Uint8Array):string{return Array.from(bytes,(byte)=>byte.toString(16).padStart(2,"0")).join("")}
 async function validSignature(body:ArrayBuffer,signature:string,appSecret:string):Promise<boolean>{if(!signature.startsWith("sha256="))return false;const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(appSecret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);const digest=await crypto.subtle.sign("HMAC",key,body);return constantTimeEqual(signature.slice(7).toLowerCase(),bytesToHex(new Uint8Array(digest)))}
-function normalize(value:string):string{return value.normalize("NFKC").trim().toLocaleLowerCase("pt-BR")}
-function containsKeyword(comment:string,keyword:string):boolean{const words=normalize(comment).replace(/[^\p{L}\p{N}]+/gu," ").split(/\s+/);return words.includes(normalize(keyword))}
+function normalize(value:string):string{return value.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR").replace(/[^\p{L}\p{N}]+/gu," ").trim().replace(/\s+/g," ")}
+function containsKeyword(comment:string,keyword:string):boolean{const normalizedComment=` ${normalize(comment)} `;const normalizedKeyword=normalize(keyword);return normalizedKeyword.length>0&&normalizedComment.includes(` ${normalizedKeyword} `)}
 function valueObject(value:unknown):Record<string,unknown>{return value&&typeof value==="object"?value as Record<string,unknown>:{}}
 
 async function sendPrivateReply(accountId:string,commentId:string,message:string,accessToken:string):Promise<void>{
