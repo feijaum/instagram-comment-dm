@@ -2,8 +2,9 @@ import { z } from "zod";
 import { createSession, getSessionUser, hashPassword, isLoginRateLimited, isSameOrigin, recordLoginAttempt, revokeSession, verifyPassword } from "./auth";
 import { handleAdminApi, type Env } from "./admin-api";
 
-const loginSchema = z.object({ email:z.string().trim().email().max(254), password:z.string().min(12).max(128) }).strict();
-const bootstrapSchema = z.object({ email:z.string().trim().email().max(254), password:z.string().min(12).max(128) }).strict();
+const MIN_PASSWORD_LENGTH = 6;
+const loginSchema = z.object({ email:z.string().trim().email().max(254), password:z.string().min(MIN_PASSWORD_LENGTH).max(128) }).strict();
+const bootstrapSchema = z.object({ email:z.string().trim().email().max(254), password:z.string().min(MIN_PASSWORD_LENGTH).max(128) }).strict();
 function json(data:unknown,init:ResponseInit={}):Response{const headers=new Headers(init.headers);headers.set("content-type","application/json; charset=utf-8");headers.set("cache-control","no-store");headers.set("x-content-type-options","nosniff");headers.set("x-frame-options","DENY");headers.set("referrer-policy","no-referrer");headers.set("permissions-policy","camera=(), microphone=(), geolocation=()");headers.set("content-security-policy","default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");return new Response(JSON.stringify(data),{...init,headers})}
 function genericLoginFailure(){return json({error:"E-mail ou senha inválidos."},{status:401})}
 async function login(request:Request,env:Env){if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});let body:unknown;try{body=await request.json()}catch{return json({error:"JSON inválido."},{status:400})}const parsed=loginSchema.safeParse(body);if(!parsed.success)return json({error:"Dados de login inválidos."},{status:400});const{email,password}=parsed.data;if(await isLoginRateLimited(env.DB,email))return json({error:"Muitas tentativas. Tente novamente mais tarde."},{status:429});const user=await env.DB.prepare("SELECT id,email,password_hash,is_active FROM users WHERE email=?1 LIMIT 1").bind(email.toLowerCase()).first<{id:string;email:string;password_hash:string;is_active:number}>();if(!user||!user.is_active){await recordLoginAttempt(env.DB,email,false);return genericLoginFailure()}const valid=await verifyPassword(password,user.password_hash);await recordLoginAttempt(env.DB,email,valid);if(!valid)return genericLoginFailure();await env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,outcome) VALUES (?1,?2,'login','session','success')").bind(crypto.randomUUID(),user.id).run();return createSession(env.DB,{id:user.id,email:user.email})}
@@ -18,7 +19,7 @@ async function bootstrap(request:Request,env:Env){
  const token=request.headers.get("x-admin-bootstrap-token")??"";
  if(token.length<32||token!==env.ADMIN_BOOTSTRAP_TOKEN)return json({error:"Credencial de bootstrap inválida."},{status:401});
  let body:unknown;try{body=await request.json()}catch{return json({error:"JSON inválido."},{status:400})}
- const parsed=bootstrapSchema.safeParse(body);if(!parsed.success)return json({error:"Dados do administrador inválidos."},{status:400});
+ const parsed=bootstrapSchema.safeParse(body);if(!parsed.success)return json({error:`Dados do administrador inválidos. A senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`},{status:400});
  const email=parsed.data.email.toLowerCase();const passwordHash=await hashPassword(parsed.data.password);const userId=crypto.randomUUID();
  try{
    await env.DB.batch([
