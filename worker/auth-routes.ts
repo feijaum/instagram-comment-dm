@@ -9,6 +9,18 @@ const loginSchema = z.object({ login:z.string().trim().min(1).max(254), password
 function json(data:unknown,init:ResponseInit={}):Response{const headers=new Headers(init.headers);headers.set("content-type","application/json; charset=utf-8");headers.set("cache-control","no-store");headers.set("x-content-type-options","nosniff");headers.set("x-frame-options","DENY");headers.set("referrer-policy","no-referrer");headers.set("permissions-policy","camera=(), microphone=(), geolocation=()");headers.set("content-security-policy","default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");return new Response(JSON.stringify(data),{...init,headers})}
 function fail(){return json({error:"Usuário ou senha inválidos."},{status:401})}
 
+async function tokenMatches(provided:string,expected:string):Promise<boolean>{
+ const encoder=new TextEncoder();
+ const [providedDigest,expectedDigest]=await Promise.all([
+  crypto.subtle.digest("SHA-256",encoder.encode(provided)),
+  crypto.subtle.digest("SHA-256",encoder.encode(expected)),
+ ]);
+ const left=new Uint8Array(providedDigest),right=new Uint8Array(expectedDigest);
+ let difference=0;
+ for(let index=0;index<left.length;index+=1)difference|=left[index]^right[index];
+ return difference===0;
+}
+
 export async function login(request:Request,env:Env){
  if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});
  let body:unknown;try{body=await request.json()}catch{return json({error:"JSON inválido."},{status:400})}
