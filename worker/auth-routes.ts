@@ -17,7 +17,8 @@ export async function login(request:Request,env:Env){
  const identifier=parsed.data.login.trim();
  const normalizedIdentifier=identifier.toLowerCase();
  if(await isLoginRateLimited(env.DB,normalizedIdentifier))return json({error:"Muitas tentativas. Tente novamente mais tarde."},{status:429});
- const user=await env.DB.prepare("SELECT id,email,password_hash,is_active FROM users WHERE username=?1 COLLATE NOCASE OR email=?1 COLLATE NOCASE LIMIT 1").bind(identifier).first<{id:string;email:string;password_hash:string;is_active:number}>();
+ if(normalizedIdentifier!=="adm"){await recordLoginAttempt(env.DB,normalizedIdentifier,false);return fail()}
+ const user=await env.DB.prepare("SELECT id,email,password_hash,is_active FROM users WHERE email=?1 LIMIT 1").bind(INITIAL_ADMIN_EMAIL).first<{id:string;email:string;password_hash:string;is_active:number}>();
  if(!user||!user.is_active){await recordLoginAttempt(env.DB,normalizedIdentifier,false);return fail()}
  const valid=await verifyPassword(parsed.data.password,user.password_hash);await recordLoginAttempt(env.DB,normalizedIdentifier,valid);if(!valid)return fail();
  await env.DB.prepare("INSERT INTO audit_logs (id,user_id,action,resource_type,outcome) VALUES (?1,?2,'login','session','success')").bind(crypto.randomUUID(),user.id).run();
