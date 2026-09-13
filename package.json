@@ -9,7 +9,7 @@
     "preview": "npm run build && vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "npm run db:migrate:remote && npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply instagram_comment_dm --local",
     "db:migrate:remote": "wrangler d1 migrations apply instagram_comment_dm --remote"
   },
@@ -24,7 +24,6 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
     "eslint": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest",
