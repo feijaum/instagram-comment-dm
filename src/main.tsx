@@ -141,7 +141,7 @@ function Automations({ items, posts, products, reload, toggle, remove }: { items
       <p className="muted">Variáveis permitidas: <code>{"{{nome}}"}</code> e <code>{"{{link_produto}}"}</code>.</p>
       <form className="form-grid" onSubmit={submit}>
         <label>Publicação<select value={post} onChange={(e) => setPost(e.target.value)} required><option value="">Selecione uma publicação</option>{posts.map((item) => <option key={item.id} value={item.id}>{item.title || item.provider_post_id}</option>)}</select></label>
-        <fieldset><legend>Produtos</legend>{products.map((item) => <label key={item.id}><input type="checkbox" checked={productIds.includes(item.id)} onChange={(e) => selectProduct(item.id, e.target.checked)} /> {item.name}</label>)}</fieldset>
+        <fieldset className="product-selector"><legend>Produtos</legend><div className="product-options">{products.map((item) => <label className="product-option" key={item.id}><input type="checkbox" checked={productIds.includes(item.id)} onChange={(e) => selectProduct(item.id, e.target.checked)} /><span>{item.name}</span></label>)}</div></fieldset>
         <label>Palavra-chave<input value={keyword} onChange={(e) => setKeyword(e.target.value)} maxLength={80} placeholder="Ex.: DECOR" required /></label>
         <label>Mensagem da DM<textarea value={template} onChange={(e) => setTemplate(e.target.value)} maxLength={2000} required /></label>
         <button type="submit">Cadastrar automação</button>
