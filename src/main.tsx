@@ -3,9 +3,9 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 type User = { id: string; email: string; must_change_password?: number };
-type Post = { id: string; instagram_account_id: string; provider_post_id: string; title: string | null; is_active: number; instagram_username?: string };
+type Post = { id: string; instagram_account_id: string; provider_post_id: string; title: string | null; thumbnail_url?: string | null; permalink?: string | null; is_active: number; instagram_username?: string };
 type Product = { id: string; name: string; product_url: string; is_active: number };
-type Automation = { id: string; post_id: string; product_id: string; keyword: string; dm_template: string; is_active: number; post_title?: string | null; product_name?: string };
+type Automation = { id: string; post_id: string; product_id: string; product_ids?: string[]; keyword: string; dm_template: string; is_active: number; post_title?: string | null; product_name?: string };
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(input, { credentials: "same-origin", ...init });
@@ -88,7 +88,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   useEffect(() => { void load(); }, []);
   async function syncInstagram() { try { const result = await requestJson<{ synchronized: number; account: { username: string } }>("/api/instagram/sync", { method: "POST" }); setMessage(`Conta @${result.account.username} conectada. ${result.synchronized} publicações sincronizadas.`); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível sincronizar o Instagram."); } }
   async function remove(path: string, label: string) { if (!confirm(`Excluir ${label}?`)) return; try { await requestJson(path, { method: "DELETE" }); setMessage("Registro excluído."); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível excluir."); } }
-  async function toggle(automation: Automation) { try { await requestJson(`/api/automation-rules/${automation.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ is_active: !Boolean(automation.is_active) }) }); setMessage(automation.is_active ? "Automação desativada." : "Automação ativada."); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível alterar a automação."); } }
+  async function toggle(automation: Automation) { try { await requestJson(`/api/automation-rules/${automation.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ is_active: !Boolean(automation.is_active) }) }); setMessage(automation.is_active ? "Automação pausada." : "Automação ativada."); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível alterar a automação."); } }
   const labels: Record<string, string> = { dashboard: "Visão geral", posts: "Publicações", products: "Produtos", automations: "Automações", history: "Histórico", security: "Segurança", settings: "Configurações" };
   return <div className="admin-layout"><aside className="sidebar"><div><span className="eyebrow">Instagram Comment DM</span><h2>Painel</h2></div><nav>{Object.entries(labels).map(([key, label]) => <button className={section === key ? "nav-active" : ""} onClick={() => setSection(key)} key={key}>{label}</button>)}</nav><div className="sidebar-foot"><small>{user.email}</small><button onClick={onLogout}>Sair</button></div></aside><main className="content"><header><div><span className="eyebrow">Administração</span><h1>{labels[section]}</h1></div><span className="pill">Sessão segura</span></header>{message && <div className="status" role="status">{message}</div>}{error && <div className="error" role="alert">{error}</div>}{section === "dashboard" && <><div className="grid"><div className="stat"><strong>{posts.length}</strong><span>Publicações</span></div><div className="stat"><strong>{products.length}</strong><span>Produtos</span></div><div className="stat"><strong>{automations.filter((item) => item.is_active).length}</strong><span>Automações ativas</span></div></div><section className="card"><h2>Próximos passos</h2><p>Cadastre publicações, produtos e regras. A integração oficial com o Instagram será adicionada em uma fase posterior.</p></section></>}{section === "posts" && <Posts posts={posts} reload={load} remove={remove} syncInstagram={syncInstagram} />}{section === "products" && <Products products={products} reload={load} remove={remove} />}{section === "automations" && <Automations items={automations} posts={posts} products={products} reload={load} toggle={toggle} remove={remove} />}{section === "history" && <InstagramDiagnostics />}{section === "security" && <section className="card"><h2>Segurança</h2><p>Autenticação por sessão HttpOnly, autorização por proprietário e validação de entrada estão ativas.</p></section>}{section === "settings" && <section className="card"><h2>Configurações</h2><p>Integrações e configurações avançadas serão habilitadas nas próximas fases.</p></section>}</main></div>;
 }
@@ -102,7 +102,7 @@ function Posts({ posts, reload, remove, syncInstagram }: { posts: Post[]; reload
     </section>
     <section className="card">
       <h2>Publicações disponíveis</h2>
-      {posts.length === 0 ? <p className="muted">Clique em “Sincronizar publicações”.</p> : <div className="list">{posts.map((post) => <article className="list-item" key={post.id}><div><strong>{post.title || "Sem título"}</strong><small>ID: {post.provider_post_id} · Conta: {post.instagram_username || post.instagram_account_id}</small></div><button className="danger" onClick={() => remove(`/api/posts/${post.id}`, "a publicação")}>Excluir</button></article>)}</div>}
+      {posts.length === 0 ? <p className="muted">Clique em “Sincronizar publicações”.</p> : <div className="list">{posts.map((post) => <article className="list-item post-list-item" key={post.id}>{post.thumbnail_url ? <img className="post-thumb" src={post.thumbnail_url} alt="" loading="lazy" /> : <div className="post-thumb post-thumb-empty">Sem imagem</div>}<div className="post-list-content"><strong>{post.title || "Sem título"}</strong><small>ID: {post.provider_post_id} · Conta: {post.instagram_username || post.instagram_account_id}</small>{post.permalink && <a href={post.permalink} target="_blank" rel="noreferrer">Abrir publicação no Instagram</a>}</div><button className="danger" onClick={() => remove(`/api/posts/${post.id}`, "a publicação")}>Excluir</button></article>)}</div>}
     </section>
   </>;
 }
@@ -110,45 +110,66 @@ function Posts({ posts, reload, remove, syncInstagram }: { posts: Post[]; reload
 function Products({ products, reload, remove }: { products: Product[]; reload: () => Promise<void>; remove: (path: string, label: string) => Promise<void> }) { const [name, setName] = useState(""); const [url, setUrl] = useState(""); const [error, setError] = useState(""); async function submit(event: FormEvent) { event.preventDefault(); setError(""); try { await requestJson("/api/products", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, product_url: url }) }); setName(""); setUrl(""); await reload(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível cadastrar."); } } return <><section className="card"><h2>Novo produto</h2><form className="form-grid" onSubmit={submit}><label>Nome<input value={name} onChange={(e) => setName(e.target.value)} maxLength={160} required /></label><label>URL do produto<input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." required /></label><button type="submit">Cadastrar produto</button></form>{error && <div className="error">{error}</div>}</section><section className="card"><h2>Produtos cadastrados</h2>{products.length === 0 ? <p className="muted">Nenhum produto cadastrado.</p> : <div className="list">{products.map((product) => <article className="list-item" key={product.id}><div><strong>{product.name}</strong><small>{product.product_url}</small></div><button className="danger" onClick={() => remove(`/api/products/${product.id}`, "o produto")}>Excluir</button></article>)}</div>}</section></>; }
 
 function Automations({ items, posts, products, reload, toggle, remove }: { items: Automation[]; posts: Post[]; products: Product[]; reload: () => Promise<void>; toggle: (automation: Automation) => Promise<void>; remove: (path: string, label: string) => Promise<void> }) {
+  const defaultTemplate = "Olá, @{{nome}}! Aqui estão os produtos que você pediu:\n\n{{link_produto}}";
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [post, setPost] = useState("");
   const [productIds, setProductIds] = useState<string[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [template, setTemplate] = useState("Olá, {{nome}}! Aqui estão os produtos que você pediu:\n\n{{link_produto}}");
+  const [template, setTemplate] = useState(defaultTemplate);
   const [error, setError] = useState("");
+
+  function resetForm() {
+    setEditingId(null); setPost(""); setProductIds([]); setKeyword(""); setTemplate(defaultTemplate); setError("");
+  }
   function selectProduct(id: string, checked: boolean) {
-    setProductIds((current) => checked ? [...current, id] : current.filter((item) => item !== id));
+    setProductIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id));
+  }
+  function edit(item: Automation) {
+    setEditingId(item.id);
+    setPost(item.post_id);
+    setProductIds(item.product_ids?.length ? item.product_ids : [item.product_id]);
+    setKeyword(item.keyword);
+    setTemplate(item.dm_template);
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (!post) { setError("Selecione uma publicação."); return; }
     if (productIds.length === 0) { setError("Selecione pelo menos um produto."); return; }
     try {
-      await requestJson("/api/automation-rules", {
-        method: "POST",
+      await requestJson(editingId ? `/api/automation-rules/${editingId}` : "/api/automation-rules", {
+        method: editingId ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ post_id: post, product_ids: productIds, keyword, dm_template: template, is_active: true }),
       });
-      setKeyword("");
-      setProductIds([]);
+      resetForm();
       await reload();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não foi possível cadastrar.");
+      setError(cause instanceof Error ? cause.message : "Não foi possível salvar a automação.");
     }
   }
   return <>
     <section className="card">
-      <h2>Nova automação</h2>
+      <h2>{editingId ? "Editar automação" : "Nova automação"}</h2>
       <p className="muted">Variáveis permitidas: <code>{"{{nome}}"}</code> e <code>{"{{link_produto}}"}</code>.</p>
       <form className="form-grid" onSubmit={submit}>
-        <label>Publicação<select value={post} onChange={(e) => setPost(e.target.value)} required><option value="">Selecione uma publicação</option>{posts.map((item) => <option key={item.id} value={item.id}>{item.title || item.provider_post_id}</option>)}</select></label>
+        <fieldset className="post-selector"><legend>Publicação</legend>
+          <div className="post-options">{posts.map((item) => <label className={`post-option ${post === item.id ? "post-option-selected" : ""}`} key={item.id}>
+            <input type="radio" name="post" value={item.id} checked={post === item.id} onChange={() => setPost(item.id)} />
+            {item.thumbnail_url ? <img src={item.thumbnail_url} alt="" loading="lazy" /> : <div className="post-option-placeholder">Sem imagem</div>}
+            <span><strong>{item.title || "Sem título"}</strong><small>{item.instagram_username ? `@${item.instagram_username}` : "Instagram"}</small>{item.permalink && <a href={item.permalink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Abrir publicação</a>}</span>
+          </label>)}</div>
+        </fieldset>
         <fieldset className="product-selector"><legend>Produtos</legend><div className="product-options">{products.map((item) => <label className="product-option" key={item.id}><input type="checkbox" checked={productIds.includes(item.id)} onChange={(e) => selectProduct(item.id, e.target.checked)} /><span>{item.name}</span></label>)}</div></fieldset>
         <label>Palavra-chave<input value={keyword} onChange={(e) => setKeyword(e.target.value)} maxLength={80} placeholder="Ex.: DECOR" required /></label>
         <label>Mensagem da DM<textarea value={template} onChange={(e) => setTemplate(e.target.value)} maxLength={2000} required /></label>
-        <button type="submit">Cadastrar automação</button>
+        <div className="actions"><button type="submit">{editingId ? "Salvar alterações" : "Cadastrar automação"}</button>{editingId && <button type="button" className="secondary" onClick={resetForm}>Cancelar edição</button>}</div>
       </form>
       {error && <div className="error">{error}</div>}
     </section>
-    <section className="card"><h2>Automações cadastradas</h2>{items.length === 0 ? <p className="muted">Nenhuma automação cadastrada.</p> : <div className="list">{items.map((item) => <article className="list-item" key={item.id}><div><strong>{item.keyword}</strong><small>{item.post_title || item.post_id} · {item.product_name || item.product_id}</small></div><div className="actions"><button onClick={() => toggle(item)}>{item.is_active ? "Desativar" : "Ativar"}</button><button className="danger" onClick={() => remove(`/api/automation-rules/${item.id}`, "a automação")}>Excluir</button></div></article>)}</div>}</section>
+    <section className="card"><h2>Automações cadastradas</h2>{items.length === 0 ? <p className="muted">Nenhuma automação cadastrada.</p> : <div className="list">{items.map((item) => <article className="list-item" key={item.id}><div><strong>{item.keyword}</strong><small>{item.post_title || item.post_id} · {item.product_name || item.product_id}</small><small>{item.is_active ? "Ativa" : "Pausada"}</small></div><div className="actions"><button onClick={() => edit(item)}>Editar</button><button className={item.is_active ? "warning" : ""} onClick={() => toggle(item)}>{item.is_active ? "Pausar" : "Ativar"}</button><button className="danger" onClick={() => remove(`/api/automation-rules/${item.id}`, "a automação")}>Excluir</button></div></article>)}</div>}</section>
   </>;
 }
 
