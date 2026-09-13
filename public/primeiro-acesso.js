@@ -17,7 +17,7 @@ form.addEventListener("submit", async (event) => {
   submit.disabled = true;
 
   try {
-    const response = await fetch("/api/auth/bootstrap", {
+    const response = await fetch("/api/auth/set-initial-password", {
       method: "POST",
       credentials: "same-origin",
       headers: {
@@ -33,13 +33,13 @@ form.addEventListener("submit", async (event) => {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      showMessage(data.error || "Não foi possível criar o administrador.", "error");
+      showMessage(data.error || "Não foi possível cadastrar a primeira senha.", "error");
       return;
     }
 
     password.value = "";
     token.value = "";
-    showMessage("Administrador criado com sucesso. O primeiro acesso foi concluído. Você será encaminhado para o login.", "success");
+    showMessage("Primeira senha cadastrada com sucesso. Você será encaminhado para o login.", "success");
     setTimeout(() => { window.location.assign("/"); }, 1800);
   } catch {
     showMessage("Não foi possível conectar ao servidor. Tente novamente.", "error");
