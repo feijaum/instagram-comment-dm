@@ -7,7 +7,7 @@ const postCreate=z.object({instagram_account_id:z.string().uuid(),provider_post_
 const postPatch=postCreate.partial();
 const productCreate=z.object({name:z.string().trim().min(1).max(160),product_url:z.string().trim().max(2048).url()}).strict();
 const productPatch=productCreate.partial();
-const automationCreate=z.object({post_id:z.string().uuid(),product_id:z.string().uuid(),keyword:z.string().trim().min(1).max(80),dm_template:z.string().trim().min(1).max(1000),is_active:z.boolean().optional()}).strict();
+const automationCreate=z.object({post_id:z.string().uuid(),product_ids:z.array(z.string().uuid()).min(1).max(20),keyword:z.string().trim().min(1).max(80),dm_template:z.string().trim().min(1).max(2000),is_active:z.boolean().optional()}).strict();
 const automationPatch=automationCreate.partial();
 const approvedVariables=new Set(["{{nome}}","{{link_produto}}"]);
 function json(data:unknown,init:ResponseInit={}):Response{const headers=new Headers(init.headers);headers.set("content-type","application/json; charset=utf-8");headers.set("cache-control","no-store");headers.set("x-content-type-options","nosniff");headers.set("x-frame-options","DENY");headers.set("referrer-policy","no-referrer");headers.set("permissions-policy","camera=(), microphone=(), geolocation=()");headers.set("content-security-policy","default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");return new Response(JSON.stringify(data),{...init,headers})}
@@ -29,8 +29,47 @@ async function products(request:Request,env:Env,user:AuthUser,idParam?:string):P
  if(!idParam)return json({error:"Método não permitido."},{status:405});const owned=await env.DB.prepare("SELECT id,name,product_url,is_active FROM products WHERE id=?1 AND user_id=?2 LIMIT 1").bind(idParam,user.id).first<{id:string;name:string;product_url:string;is_active:number}>();if(!owned)return notFound();if(request.method==="GET")return json({product:owned});if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});if(request.method==="DELETE"){try{await env.DB.prepare("DELETE FROM products WHERE id=?1 AND user_id=?2").bind(idParam,user.id).run()}catch{return conflict("O produto não pode ser excluído enquanto estiver vinculado a uma automação.")}await audit(env.DB,user.id,"delete","product",idParam);return noContent()}
  if(request.method==="PATCH"){const p=productPatch.safeParse(await request.json().catch(()=>null));if(!p.success||Object.keys(p.data).length===0||(p.data.product_url!==undefined&&!validProductUrl(p.data.product_url)))return badRequest("Dados do produto inválidos. A URL deve usar HTTPS.");const next={...owned,...p.data};await env.DB.prepare("UPDATE products SET name=?1,product_url=?2,updated_at=datetime('now') WHERE id=?3 AND user_id=?4").bind(next.name,next.product_url,idParam,user.id).run();await audit(env.DB,user.id,"update","product",idParam);return json({product:next})}return json({error:"Método não permitido."},{status:405})}
 async function automations(request:Request,env:Env,user:AuthUser,idParam?:string):Promise<Response>{
- if(request.method==="GET"&&!idParam){const r=await env.DB.prepare(`SELECT r.id,r.post_id,r.product_id,r.keyword,r.keyword_normalized,r.dm_template,r.is_active,r.created_at,r.updated_at,p.title AS post_title,p.provider_post_id,pr.name AS product_name FROM automation_rules r JOIN posts p ON p.id=r.post_id AND p.user_id=?1 JOIN products pr ON pr.id=r.product_id AND pr.user_id=?1 WHERE r.user_id=?1 ORDER BY r.created_at DESC`).bind(user.id).all();return json({automations:r.results})}
- if(request.method==="POST"&&!idParam){if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});const p=automationCreate.safeParse(await request.json().catch(()=>null));if(!p.success||!validateTemplate(p.data.dm_template))return badRequest("Dados da automação inválidos. Use apenas {{nome}} e {{link_produto}}.");const d=p.data,n=normalizeKeyword(d.keyword);const rel=await env.DB.prepare(`SELECT p.id AS post_id,pr.id AS product_id FROM posts p CROSS JOIN products pr WHERE p.id=?1 AND p.user_id=?2 AND pr.id=?3 AND pr.user_id=?2 LIMIT 1`).bind(d.post_id,user.id,d.product_id).first();if(!rel)return notFound();const ruleId=id();try{await env.DB.prepare("INSERT INTO automation_rules (id,user_id,post_id,product_id,keyword,keyword_normalized,dm_template,is_active) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").bind(ruleId,user.id,d.post_id,d.product_id,d.keyword,n,d.dm_template,d.is_active?1:0).run()}catch(e){if(String(e).toLowerCase().includes("unique"))return conflict("Já existe uma automação com esta palavra-chave nesta publicação.");throw e}await audit(env.DB,user.id,"create","automation_rule",ruleId);return json({id:ruleId},{status:201})}
- if(!idParam)return json({error:"Método não permitido."},{status:405});const owned=await env.DB.prepare("SELECT id,post_id,product_id,keyword,keyword_normalized,dm_template,is_active FROM automation_rules WHERE id=?1 AND user_id=?2 LIMIT 1").bind(idParam,user.id).first<any>();if(!owned)return notFound();if(request.method==="GET")return json({automation:owned});if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});if(request.method==="DELETE"){await env.DB.prepare("DELETE FROM automation_rules WHERE id=?1 AND user_id=?2").bind(idParam,user.id).run();await audit(env.DB,user.id,"delete","automation_rule",idParam);return noContent()}
- if(request.method==="PATCH"){const p=automationPatch.safeParse(await request.json().catch(()=>null));if(!p.success||Object.keys(p.data).length===0)return badRequest("Dados da automação inválidos.");const d=p.data;if(d.dm_template!==undefined&&!validateTemplate(d.dm_template))return badRequest("O texto usa uma variável não permitida.");if(d.post_id||d.product_id){const postId=d.post_id??owned.post_id,productId=d.product_id??owned.product_id;const rel=await env.DB.prepare("SELECT p.id FROM posts p JOIN products pr ON pr.id=?1 AND pr.user_id=?2 WHERE p.id=?3 AND p.user_id=?2 LIMIT 1").bind(productId,user.id,postId).first();if(!rel)return notFound()}const next={...owned,...d,keyword_normalized:d.keyword?normalizeKeyword(d.keyword):owned.keyword_normalized};try{await env.DB.prepare("UPDATE automation_rules SET post_id=?1,product_id=?2,keyword=?3,keyword_normalized=?4,dm_template=?5,is_active=?6,updated_at=datetime('now') WHERE id=?7 AND user_id=?8").bind(next.post_id,next.product_id,next.keyword,next.keyword_normalized,next.dm_template,next.is_active?1:0,idParam,user.id).run()}catch(e){if(String(e).toLowerCase().includes("unique"))return conflict("Já existe uma automação com esta palavra-chave nesta publicação.");throw e}await audit(env.DB,user.id,"update","automation_rule",idParam);return json({automation:next})}return json({error:"Método não permitido."},{status:405})}
+ if(request.method==="GET"&&!idParam){
+  const r=await env.DB.prepare(`SELECT r.id,r.post_id,r.product_id,r.keyword,r.keyword_normalized,r.dm_template,r.is_active,r.created_at,r.updated_at,p.title AS post_title,p.provider_post_id,(SELECT GROUP_CONCAT(pr2.name, ', ') FROM automation_rule_products arp2 JOIN products pr2 ON pr2.id=arp2.product_id WHERE arp2.automation_rule_id=r.id) AS product_name FROM automation_rules r JOIN posts p ON p.id=r.post_id AND p.user_id=?1 WHERE r.user_id=?1 ORDER BY r.created_at DESC`).bind(user.id).all();
+  return json({automations:r.results});
+ }
+ if(request.method==="POST"&&!idParam){
+  if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});
+  const p=automationCreate.safeParse(await request.json().catch(()=>null));
+  if(!p.success||!validateTemplate(p.data.dm_template))return badRequest("Selecione uma publicação, um ou mais produtos e use apenas {{nome}} e {{link_produto}}.");
+  const d=p.data,n=normalizeKeyword(d.keyword);
+  const post=await env.DB.prepare("SELECT id FROM posts WHERE id=?1 AND user_id=?2 LIMIT 1").bind(d.post_id,user.id).first();
+  if(!post)return notFound();
+  for(const productId of d.product_ids){
+   const product=await env.DB.prepare("SELECT id FROM products WHERE id=?1 AND user_id=?2 LIMIT 1").bind(productId,user.id).first();
+   if(!product)return notFound();
+  }
+  const ruleId=id();
+  try{
+   await env.DB.batch([
+    env.DB.prepare("INSERT INTO automation_rules (id,user_id,post_id,product_id,keyword,keyword_normalized,dm_template,is_active) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").bind(ruleId,user.id,d.post_id,d.product_ids[0],d.keyword,n,d.dm_template,d.is_active?1:0),
+    ...d.product_ids.map((productId,index)=>env.DB.prepare("INSERT INTO automation_rule_products (automation_rule_id,product_id,position) VALUES (?1,?2,?3)").bind(ruleId,productId,index)),
+   ]);
+  }catch(e){if(String(e).toLowerCase().includes("unique"))return conflict("Já existe uma automação com esta palavra-chave nesta publicação.");throw e}
+  await audit(env.DB,user.id,"create","automation_rule",ruleId);
+  return json({id:ruleId},{status:201});
+ }
+ if(!idParam)return json({error:"Método não permitido."},{status:405});
+ const owned=await env.DB.prepare("SELECT id,post_id,product_id,keyword,keyword_normalized,dm_template,is_active FROM automation_rules WHERE id=?1 AND user_id=?2 LIMIT 1").bind(idParam,user.id).first<any>();
+ if(!owned)return notFound();
+ if(request.method==="GET")return json({automation:owned});
+ if(!isSameOrigin(request))return json({error:"Origem não autorizada."},{status:403});
+ if(request.method==="DELETE"){await env.DB.prepare("DELETE FROM automation_rules WHERE id=?1 AND user_id=?2").bind(idParam,user.id).run();await audit(env.DB,user.id,"delete","automation_rule",idParam);return noContent()}
+ if(request.method==="PATCH"){
+  const p=automationPatch.safeParse(await request.json().catch(()=>null));
+  if(!p.success||Object.keys(p.data).length===0)return badRequest("Dados da automação inválidos.");
+  const d=p.data;
+  if(d.dm_template!==undefined&&!validateTemplate(d.dm_template))return badRequest("O texto usa uma variável não permitida.");
+  const next={...owned,...d,keyword_normalized:d.keyword?normalizeKeyword(d.keyword):owned.keyword_normalized};
+  try{await env.DB.prepare("UPDATE automation_rules SET post_id=?1,product_id=?2,keyword=?3,keyword_normalized=?4,dm_template=?5,is_active=?6,updated_at=datetime('now') WHERE id=?7 AND user_id=?8").bind(next.post_id,next.product_id,next.keyword,next.keyword_normalized,next.dm_template,next.is_active?1:0,idParam,user.id).run()}catch(e){if(String(e).toLowerCase().includes("unique"))return conflict("Já existe uma automação com esta palavra-chave nesta publicação.");throw e}
+  await audit(env.DB,user.id,"update","automation_rule",idParam);
+  return json({automation:next});
+ }
+ return json({error:"Método não permitido."},{status:405});
+}
 export async function handleAdminApi(request:Request,env:Env,pathname:string):Promise<Response>{const u=await auth(request,env);if(u instanceof Response)return u;const parts=pathname.split("/").filter(Boolean),idParam=parts.length===3?parts[2]:undefined;if(pathname==="/api/posts"||pathname.startsWith("/api/posts/"))return posts(request,env,u,idParam);if(pathname==="/api/products"||pathname.startsWith("/api/products/"))return products(request,env,u,idParam);if(pathname==="/api/automation-rules"||pathname.startsWith("/api/automation-rules/"))return automations(request,env,u,idParam);return json({error:"Rota não encontrada."},{status:404})}
