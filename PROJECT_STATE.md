@@ -1,24 +1,27 @@
 # Estado do Projeto
 
-## 2026-09-12 — Primeiro acesso administrativo
+## 2026-09-13 — Primeiro acesso administrativo via interface
 
 ### Estado encontrado
 
-- Correção do build do frontend já commitada; novo deploy Cloudflare ainda precisa confirmar o build.
+- Worker publicado e `/api/health` confirmado pelo usuário como acessível.
 - Fase 4 concluída: painel administrativo, CRUD inicial e controles de propriedade.
-- Autenticação da Fase 3 já implementada com sessões seguras.
-- O projeto ainda não tinha mecanismo seguro para criar o primeiro usuário.
+- Autenticação da Fase 3 implementada com sessões seguras.
+- Bootstrap administrativo de uso único implementado no backend.
 
 ### Implementado
 
 - Migration `0002_admin_bootstrap.sql` com marcador único de inicialização.
 - Endpoint `POST /api/auth/bootstrap` para criação do primeiro administrador.
 - Bootstrap protegido pelo Secret de runtime `ADMIN_BOOTSTRAP_TOKEN`.
-- Bootstrap exige origem autorizada, Secret correto e payload estrito de e-mail/senha.
-- O primeiro usuário, o marcador de bootstrap e a auditoria são gravados atomicamente no D1.
-- O bootstrap fica permanentemente bloqueado após o primeiro uso.
-- Senha do administrador armazenada somente como hash PBKDF2-HMAC-SHA-256.
-- Nenhum token de bootstrap ou senha foi colocado no código, frontend ou documentação com valor real.
+- Página dedicada `/primeiro-acesso.html` para o primeiro cadastro, sem necessidade de DevTools Console.
+- Formulário em pt-BR com e-mail, senha e token.
+- Token enviado somente em header HTTPS e nunca em URL, localStorage ou resposta.
+- Senha e token removidos do formulário após criação bem-sucedida.
+- Headers de segurança, `no-store` e `noindex` na página de primeiro acesso.
+- Primeiro usuário, marcador de bootstrap e auditoria gravados atomicamente no D1.
+- Bootstrap permanentemente bloqueado após o primeiro uso.
+- Senha armazenada somente como hash PBKDF2-HMAC-SHA-256.
 
 ### Preservado
 
@@ -29,24 +32,26 @@
 
 ### Testado / verificado
 
-- Código existente foi inspecionado antes da alteração.
-- Migration, endpoint e fluxo de bootstrap foram revisados quanto a atomicidade e ausência de segredos em código.
-- `npm run typecheck`, `npm run lint` e migrations ainda não foram executados neste ambiente.
-- O build anterior do Cloudflare falhou por `Unterminated string`; a correção já foi commitada, mas o novo build ainda precisa ser confirmado.
+- Código existente e rota de bootstrap foram inspecionados antes da alteração.
+- A página de primeiro acesso foi adicionada como asset estático do Vite/Cloudflare.
+- Configuração atual do Wrangler inclui assets e D1.
+- O usuário confirmou que a aplicação publicada abre normalmente.
+- Não foi executado `npm run typecheck`, `npm run lint`, `npm run build` ou migration remota neste ambiente; portanto, não são declarados como aprovados.
 
 ### Segurança
 
 - O Secret `ADMIN_BOOTSTRAP_TOKEN` deve existir somente como Secret no Cloudflare.
-- O token é aceito somente no header `x-admin-bootstrap-token` e nunca é retornado pela API.
-- O endpoint não cria novos administradores depois que o bootstrap foi consumido.
+- O token não deve ser compartilhado no chat, GitHub, screenshots ou logs.
+- Como um token anterior foi exposto na conversa, ele deve ser considerado comprometido e substituído antes do primeiro cadastro.
 - A senha nunca é armazenada em texto puro.
-- Não compartilhar o token de bootstrap no chat, GitHub, screenshots ou logs.
+- A página de bootstrap não usa armazenamento local para credenciais.
 
 ### Próximo passo
 
-1. Configurar `ADMIN_BOOTSTRAP_TOKEN` como Secret no Cloudflare.
-2. Executar o deploy para aplicar `0002_admin_bootstrap.sql`.
-3. Fazer o primeiro bootstrap usando o endpoint seguro.
-4. Entrar no painel com o e-mail e senha definidos.
-5. Depois do acesso, remover/desativar o Secret de bootstrap e validar `/api/health`, D1 e demais rotas.
-6. Somente então avançar para a integração oficial Meta/Instagram.
+1. Aguardar o deploy automático dos novos assets.
+2. Abrir `/primeiro-acesso.html`.
+3. Informar e-mail, uma nova senha forte e o token atualmente configurado no Cloudflare.
+4. Criar o administrador uma única vez.
+5. Entrar no painel usando o e-mail e senha definidos.
+6. Após o acesso, remover/desativar o Secret de bootstrap e validar D1, login e demais rotas.
+7. Somente então avançar para a integração oficial Meta/Instagram.
