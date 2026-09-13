@@ -8,3 +8,24 @@ form{margin-top:20px}form label+label{margin-top:2px}
 .product-option:hover{background:#f3f4f6}
 .product-option input[type="checkbox"]{width:22px;height:22px;min-width:22px;margin:0;accent-color:#2563eb;cursor:pointer}
 .product-option span{line-height:1.35}
+
+.secondary{background:#e5e7eb;color:#1f2937}
+.warning{background:#b45309}
+.post-list-item{justify-content:flex-start}
+.post-list-content{flex:1;min-width:0}
+.post-list-content a,.post-option a{display:inline-block;margin-top:6px;color:#1d4ed8;font-size:.86rem;font-weight:700;text-decoration:none}
+.post-list-content a:hover,.post-option a:hover{text-decoration:underline}
+.post-thumb{width:84px;height:84px;flex:0 0 84px;object-fit:cover;border-radius:10px;background:#f3f4f6}
+.post-thumb-empty,.post-option-placeholder{display:grid;place-items:center;color:#6b7280;font-size:.72rem;text-align:center}
+.post-selector{margin:0;border:1px solid #d1d5db;border-radius:12px;padding:14px 18px 18px}
+.post-selector legend{padding:0 7px;font-weight:700;color:#374151}
+.post-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:4px}
+.post-option{display:grid;grid-template-columns:22px 82px minmax(0,1fr);align-items:center;gap:12px;padding:12px;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;background:#fff;transition:border-color .15s ease,background-color .15s ease}
+.post-option:hover{background:#f8fafc;border-color:#93c5fd}
+.post-option-selected{border-color:#2563eb;background:#eff6ff}
+.post-option input[type="radio"]{width:20px;height:20px;margin:0;accent-color:#2563eb}
+.post-option img,.post-option-placeholder{width:82px;height:82px;object-fit:cover;border-radius:9px;background:#f3f4f6}
+.post-option span{min-width:0}
+.post-option strong{display:-webkit-box;overflow:hidden;-webkit-line-clamp:3;-webkit-box-orient:vertical;line-height:1.35}
+.post-option small{display:block;margin-top:6px;color:#6b7280}
+@media(max-width:800px){.post-options{grid-template-columns:1fr}.post-option{grid-template-columns:22px 68px minmax(0,1fr)}.post-option img,.post-option-placeholder{width:68px;height:68px}.post-thumb{width:68px;height:68px;flex-basis:68px}}
