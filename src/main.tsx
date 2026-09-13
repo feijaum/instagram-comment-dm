@@ -90,7 +90,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   async function remove(path: string, label: string) { if (!confirm(`Excluir ${label}?`)) return; try { await requestJson(path, { method: "DELETE" }); setMessage("Registro excluído."); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível excluir."); } }
   async function toggle(automation: Automation) { try { await requestJson(`/api/automation-rules/${automation.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ is_active: !Boolean(automation.is_active) }) }); setMessage(automation.is_active ? "Automação desativada." : "Automação ativada."); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível alterar a automação."); } }
   const labels: Record<string, string> = { dashboard: "Visão geral", posts: "Publicações", products: "Produtos", automations: "Automações", history: "Histórico", security: "Segurança", settings: "Configurações" };
-  return <div className="admin-layout"><aside className="sidebar"><div><span className="eyebrow">Instagram Comment DM</span><h2>Painel</h2></div><nav>{Object.entries(labels).map(([key, label]) => <button className={section === key ? "nav-active" : ""} onClick={() => setSection(key)} key={key}>{label}</button>)}</nav><div className="sidebar-foot"><small>{user.email}</small><button onClick={onLogout}>Sair</button></div></aside><main className="content"><header><div><span className="eyebrow">Administração</span><h1>{labels[section]}</h1></div><span className="pill">Sessão segura</span></header>{message && <div className="status" role="status">{message}</div>}{error && <div className="error" role="alert">{error}</div>}{section === "dashboard" && <><div className="grid"><div className="stat"><strong>{posts.length}</strong><span>Publicações</span></div><div className="stat"><strong>{products.length}</strong><span>Produtos</span></div><div className="stat"><strong>{automations.filter((item) => item.is_active).length}</strong><span>Automações ativas</span></div></div><section className="card"><h2>Próximos passos</h2><p>Cadastre publicações, produtos e regras. A integração oficial com o Instagram será adicionada em uma fase posterior.</p></section></>}{section === "posts" && <Posts posts={posts} reload={load} remove={remove} syncInstagram={syncInstagram} />}{section === "products" && <Products products={products} reload={load} remove={remove} />}{section === "automations" && <Automations items={automations} posts={posts} products={products} reload={load} toggle={toggle} remove={remove} />}{section === "history" && <section className="card"><h2>Histórico</h2><p>O histórico operacional será conectado aos logs na próxima etapa de observabilidade.</p></section>}{section === "security" && <section className="card"><h2>Segurança</h2><p>Autenticação por sessão HttpOnly, autorização por proprietário e validação de entrada estão ativas.</p></section>}{section === "settings" && <section className="card"><h2>Configurações</h2><p>Integrações e configurações avançadas serão habilitadas nas próximas fases.</p></section>}</main></div>;
+  return <div className="admin-layout"><aside className="sidebar"><div><span className="eyebrow">Instagram Comment DM</span><h2>Painel</h2></div><nav>{Object.entries(labels).map(([key, label]) => <button className={section === key ? "nav-active" : ""} onClick={() => setSection(key)} key={key}>{label}</button>)}</nav><div className="sidebar-foot"><small>{user.email}</small><button onClick={onLogout}>Sair</button></div></aside><main className="content"><header><div><span className="eyebrow">Administração</span><h1>{labels[section]}</h1></div><span className="pill">Sessão segura</span></header>{message && <div className="status" role="status">{message}</div>}{error && <div className="error" role="alert">{error}</div>}{section === "dashboard" && <><div className="grid"><div className="stat"><strong>{posts.length}</strong><span>Publicações</span></div><div className="stat"><strong>{products.length}</strong><span>Produtos</span></div><div className="stat"><strong>{automations.filter((item) => item.is_active).length}</strong><span>Automações ativas</span></div></div><section className="card"><h2>Próximos passos</h2><p>Cadastre publicações, produtos e regras. A integração oficial com o Instagram será adicionada em uma fase posterior.</p></section></>}{section === "posts" && <Posts posts={posts} reload={load} remove={remove} syncInstagram={syncInstagram} />}{section === "products" && <Products products={products} reload={load} remove={remove} />}{section === "automations" && <Automations items={automations} posts={posts} products={products} reload={load} toggle={toggle} remove={remove} />}{section === "history" && <InstagramDiagnostics />}{section === "security" && <section className="card"><h2>Segurança</h2><p>Autenticação por sessão HttpOnly, autorização por proprietário e validação de entrada estão ativas.</p></section>}{section === "settings" && <section className="card"><h2>Configurações</h2><p>Integrações e configurações avançadas serão habilitadas nas próximas fases.</p></section>}</main></div>;
 }
 
 function Posts({ posts, reload, remove, syncInstagram }: { posts: Post[]; reload: () => Promise<void>; remove: (path: string, label: string) => Promise<void>; syncInstagram: () => Promise<void> }) {
@@ -150,6 +150,40 @@ function Automations({ items, posts, products, reload, toggle, remove }: { items
     </section>
     <section className="card"><h2>Automações cadastradas</h2>{items.length === 0 ? <p className="muted">Nenhuma automação cadastrada.</p> : <div className="list">{items.map((item) => <article className="list-item" key={item.id}><div><strong>{item.keyword}</strong><small>{item.post_title || item.post_id} · {item.product_name || item.product_id}</small></div><div className="actions"><button onClick={() => toggle(item)}>{item.is_active ? "Desativar" : "Ativar"}</button><button className="danger" onClick={() => remove(`/api/automation-rules/${item.id}`, "a automação")}>Excluir</button></div></article>)}</div>}</section>
   </>;
+}
+
+
+function InstagramDiagnostics() {
+  const [data, setData] = useState<{ diagnostic: { status?: string; detail?: string; at?: string } | null; logs: Array<{ status: string; error_code?: string; created_at: string; keyword?: string }> } | null>(null);
+  const [error, setError] = useState("");
+  const load = () => requestJson<{ diagnostic: { status?: string; detail?: string; at?: string } | null; logs: Array<{ status: string; error_code?: string; created_at: string; keyword?: string }> }>("/api/instagram/diagnostics").then(setData).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao carregar o diagnóstico."));
+  useEffect(() => { void load(); }, []);
+  const labels: Record<string, string> = {
+    webhook_received: "Webhook recebido da Meta",
+    payload_authenticated: "Webhook autenticado; analisando comentário",
+    invalid_signature: "Assinatura do webhook inválida — confira META_APP_SECRET",
+    missing_app_secret: "META_APP_SECRET não configurado",
+    missing_access_token: "INSTAGRAM_ACCESS_TOKEN não configurado",
+    invalid_comment_payload: "Evento recebido sem os dados necessários do comentário",
+    account_not_found: "Conta do evento não encontrada",
+    post_not_found: "Publicação do comentário não encontrada no painel",
+    active_rule_not_found: "Não existe automação ativa para essa publicação",
+    keyword_not_matched: "Comentário recebido, mas a palavra-chave não correspondeu",
+    message_send_failed: "A Meta recebeu o pedido, mas recusou o envio da DM",
+    message_sent: "Mensagem enviada com sucesso",
+  };
+  return <section className="card">
+    <h2>Diagnóstico do Instagram</h2>
+    <p className="muted">Mostra a última etapa processada pelo webhook. Atualize após fazer um comentário novo.</p>
+    <button style={{ marginTop: 16 }} onClick={load}>Atualizar diagnóstico</button>
+    {error && <div className="error">{error}</div>}
+    {!data?.diagnostic ? <p style={{ marginTop: 16 }}>Nenhum comentário chegou ao sistema desde a ativação do diagnóstico.</p> : <div className={data.diagnostic.status === "message_sent" ? "status" : "error"}>
+      <strong>{labels[data.diagnostic.status ?? ""] ?? data.diagnostic.status}</strong>
+      {data.diagnostic.detail && <small style={{ display: "block", marginTop: 6 }}>{data.diagnostic.detail}</small>}
+      {data.diagnostic.at && <small style={{ display: "block", marginTop: 6 }}>{new Date(data.diagnostic.at).toLocaleString("pt-BR")}</small>}
+    </div>}
+    {data && data.logs.length > 0 && <div className="list" style={{ marginTop: 18 }}>{data.logs.map((log, index) => <article className="list-item" key={index}><div><strong>{log.status} · {log.keyword || "automação"}</strong><small>{log.error_code || new Date(log.created_at).toLocaleString("pt-BR")}</small></div></article>)}</div>}
+  </section>;
 }
 
 function App() {
